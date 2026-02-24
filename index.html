@@ -1204,6 +1204,13 @@
     .kpi-toggle-btn:not(:last-child) {
       border-right: 1.5px solid var(--border);
     }
+    /* Data type toggle (Cell Efficiency / Rejected Cathodes) - darker highlight */
+    .kpi-toggle-btn.efficiency.active,
+    .kpi-toggle-btn.rejections.active {
+      background: var(--primary);
+      color: var(--white);
+    }
+    /* Best/Worst toggle - color-coded highlight */
     .kpi-toggle-btn.best.active {
       background: #DCFCE7;
       color: #16A34A;
@@ -1424,6 +1431,10 @@
   <div id="kpi-area" style="display:none;">
     <div id="kpi-controls">
       <div class="kpi-toggle-group">
+        <button class="kpi-toggle-btn active efficiency" onclick="switchKpiDataType('efficiency')">Cell Efficiency</button>
+        <button class="kpi-toggle-btn rejections" onclick="switchKpiDataType('rejections')">Rejected Cathodes</button>
+      </div>
+      <div class="kpi-toggle-group" style="margin-left:16px;">
         <button class="kpi-toggle-btn active best" onclick="switchKpiMode('best')">Top 10 Best</button>
         <button class="kpi-toggle-btn worst" onclick="switchKpiMode('worst')">Top 10 Worst</button>
       </div>
@@ -2829,6 +2840,25 @@
       setTimeout(renderChart, 50);
     }
 
+    function openKpiRejectionChart(cellNum, sensor) {
+      // Temporarily switch to rejection mode to display rejection data
+      const originalConfig = activeDashConfig;
+      activeDashConfig = DASH_CONFIGS.rejection;
+
+      isAvgChart = false;
+      isDistChart = false;
+      isKpiSingleSensor = true;
+      kpiSensorType = sensor;
+      currentChartCell = cellNum;
+      document.getElementById('chart-title').innerHTML = `Rejected Cathodes - <span>Cell No ${cellNum} - ${sensor}</span>`;
+      document.getElementById('chart-modal').classList.add('show');
+      setTimeout(() => {
+        renderChart();
+        // Store original config to restore on close
+        window.kpiOriginalConfig = originalConfig;
+      }, 50);
+    }
+
     let isAvgChart = false;
 
     function openAvgChart() {
@@ -2864,6 +2894,11 @@
       kpiSensorType = '';
       distChartLabel = '';
       distChartType = -1;
+      // Restore original config if it was changed for rejection chart
+      if (window.kpiOriginalConfig) {
+        activeDashConfig = window.kpiOriginalConfig;
+        window.kpiOriginalConfig = null;
+      }
       if (cellChartInstance) { cellChartInstance.destroy(); cellChartInstance = null; }
     }
 
@@ -3719,7 +3754,9 @@
        KPI DASHBOARD
        ================================================ */
     let kpiMode = 'best';
+    let kpiDataType = 'efficiency';
     let kpiData = null;
+    let kpiRejectionData = null;
     let kpiDataLoaded = false;
     let currentDashboard = 'heatmap';
 
@@ -3782,8 +3819,15 @@
 
     function switchKpiMode(mode) {
       kpiMode = mode;
-      document.querySelectorAll('.kpi-toggle-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.kpi-toggle-btn.best, .kpi-toggle-btn.worst').forEach(b => b.classList.remove('active'));
       document.querySelector(`.kpi-toggle-btn.${mode}`).classList.add('active');
+      renderKpi();
+    }
+
+    function switchKpiDataType(type) {
+      kpiDataType = type;
+      document.querySelectorAll('.kpi-toggle-btn.efficiency, .kpi-toggle-btn.rejections').forEach(b => b.classList.remove('active'));
+      document.querySelector(`.kpi-toggle-btn.${type}`).classList.add('active');
       renderKpi();
     }
 
@@ -3807,26 +3851,43 @@
       for (let i = cellRange.start; i <= cellRange.end; i++) cellNums.push(i);
 
       const kpiRaw = {};
+      const kpiRejRaw = {};
       const tasks = [];
       let loadedCount = 0;
-      const totalTasks = cellNums.length * 2;
+      const totalTasks = cellNums.length * 4; // 2 for efficiency + 2 for rejection
 
       cellNums.forEach(cellNum => {
         const dev = state.deviceMap[cellNum];
         if (!dev) return;
 
+        // Efficiency sensors (D5, D11)
         tasks.push(async () => {
           const data = await fetchSensorData(dev.devID, CONFIG.sensorC1, startMs, endMs);
           loadedCount++;
           document.getElementById('kpi-loading').textContent = `Loading KPI data... ${loadedCount}/${totalTasks}`;
-          return { cellNum, sensor: 'C1', data };
+          return { cellNum, sensor: 'C1', data, type: 'efficiency' };
         });
 
         tasks.push(async () => {
           const data = await fetchSensorData(dev.devID, CONFIG.sensorC2, startMs, endMs);
           loadedCount++;
           document.getElementById('kpi-loading').textContent = `Loading KPI data... ${loadedCount}/${totalTasks}`;
-          return { cellNum, sensor: 'C2', data };
+          return { cellNum, sensor: 'C2', data, type: 'efficiency' };
+        });
+
+        // Rejection sensors (D1, D7)
+        tasks.push(async () => {
+          const data = await fetchSensorData(dev.devID, 'D1', startMs, endMs);
+          loadedCount++;
+          document.getElementById('kpi-loading').textContent = `Loading KPI data... ${loadedCount}/${totalTasks}`;
+          return { cellNum, sensor: 'C1', data, type: 'rejection' };
+        });
+
+        tasks.push(async () => {
+          const data = await fetchSensorData(dev.devID, 'D7', startMs, endMs);
+          loadedCount++;
+          document.getElementById('kpi-loading').textContent = `Loading KPI data... ${loadedCount}/${totalTasks}`;
+          return { cellNum, sensor: 'C2', data, type: 'rejection' };
         });
       });
 
@@ -3854,14 +3915,21 @@
         }
         const sortedDates = Object.keys(byDate).sort().reverse();
         const values = sortedDates.map(dk => Math.round(byDate[dk].value * 100) / 100);
-        kpiRaw[key] = values;
 
-        if (!state.cellData[r.cellNum]) state.cellData[r.cellNum] = {};
-        const dateValues = {};
-        Object.keys(byDate).forEach(dk => { dateValues[dk] = Math.round(byDate[dk].value * 100) / 100; });
-        state.cellData[r.cellNum][r.sensor] = dateValues;
+        // Store in appropriate data structure based on type
+        if (r.type === 'rejection') {
+          kpiRejRaw[key] = values;
+        } else {
+          kpiRaw[key] = values;
+          // Only store efficiency data in state.cellData for existing chart functionality
+          if (!state.cellData[r.cellNum]) state.cellData[r.cellNum] = {};
+          const dateValues = {};
+          Object.keys(byDate).forEach(dk => { dateValues[dk] = Math.round(byDate[dk].value * 100) / 100; });
+          state.cellData[r.cellNum][r.sensor] = dateValues;
+        }
       });
 
+      // Process efficiency data
       kpiData = {};
       [3, 7, 30].forEach(n => {
         const entries = [];
@@ -3876,6 +3944,23 @@
           }
         });
         kpiData[n] = entries;
+      });
+
+      // Process rejection data (sum instead of average)
+      kpiRejectionData = {};
+      [3, 7, 30].forEach(n => {
+        const entries = [];
+        Object.keys(kpiRejRaw).forEach(key => {
+          const vals = kpiRejRaw[key];
+          const slice = vals.slice(0, n);
+          if (slice.length === 0) {
+            entries.push({ key, total: null });
+          } else {
+            const total = Math.round(slice.reduce((a, b) => a + b, 0));
+            entries.push({ key, total });
+          }
+        });
+        kpiRejectionData[n] = entries;
       });
 
       kpiDataLoaded = true;
@@ -3895,6 +3980,20 @@
       return 'pct-bad';
     }
 
+    // Rejection bar/pct classes (inverse logic: lower is better)
+    function getRejBarClass(val) {
+      const rt = state.rejThresholds;
+      if (val <= rt.excellent) return 'bar-excellent';
+      if (val <= rt.good) return 'bar-good';
+      return 'bar-bad';
+    }
+    function getRejPctClass(val) {
+      const rt = state.rejThresholds;
+      if (val <= rt.excellent) return 'pct-excellent';
+      if (val <= rt.good) return 'pct-good';
+      return 'pct-bad';
+    }
+
     function parseCellKey(key) {
       const parts = key.split('-');
       return { num: parseInt(parts[0]), sensor: parts[1] };
@@ -3907,6 +4006,36 @@
     }
 
     function renderKpi() {
+      // Update column titles and headers based on data type
+      const isRejection = kpiDataType === 'rejections';
+
+      [3, 7, 30].forEach(n => {
+        // Update column title
+        const colTitle = document.querySelector(`#kpi-col-${n}`).previousElementSibling.previousElementSibling;
+        if (isRejection) {
+          colTitle.textContent = `Last ${n} Cycles Total Rejections`;
+        } else {
+          colTitle.textContent = `Last ${n} Cycles Avg Efficiency`;
+        }
+
+        // Update table header
+        const tableHeader = document.querySelector(`#kpi-col-${n}`).previousElementSibling;
+        if (isRejection) {
+          tableHeader.innerHTML = '<span>Cell No</span><span class="kpi-hdr-eff">Rejected Cathodes</span><span>Total</span>';
+        } else {
+          tableHeader.innerHTML = '<span>Cell No</span><span class="kpi-hdr-eff">Avg Efficiency</span><span>CE%</span>';
+        }
+      });
+
+      // Render data based on type
+      if (isRejection) {
+        renderKpiRejections();
+      } else {
+        renderKpiEfficiency();
+      }
+    }
+
+    function renderKpiEfficiency() {
       if (!kpiData) return;
 
       [3, 7, 30].forEach(n => {
@@ -3914,13 +4043,15 @@
         const entries = kpiData[n].filter(e => e.avg !== null);
 
         if (kpiMode === 'best') {
+          // Best: highest efficiency first (descending)
           entries.sort((a, b) => b.avg - a.avg);
         } else {
+          // Worst: lowest efficiency first (ascending)
           entries.sort((a, b) => a.avg - b.avg);
         }
 
         const top10 = entries.slice(0, 10);
-        top10.sort(sortCellKeys);
+        // Don't re-sort - keep in performance order
 
         if (top10.length === 0) {
           container.innerHTML = '<div class="kpi-nodata">No data available</div>';
@@ -3944,6 +4075,49 @@
       });
     }
 
+    function renderKpiRejections() {
+      if (!kpiRejectionData) return;
+
+      [3, 7, 30].forEach(n => {
+        const container = document.getElementById(`kpi-col-${n}`);
+        const entries = kpiRejectionData[n].filter(e => e.total !== null);
+
+        if (kpiMode === 'best') {
+          // Best: lowest rejections first (ascending)
+          entries.sort((a, b) => a.total - b.total);
+        } else {
+          // Worst: highest rejections first (descending)
+          entries.sort((a, b) => b.total - a.total);
+        }
+
+        const top10 = entries.slice(0, 10);
+        // Don't re-sort - keep in performance order
+
+        if (top10.length === 0) {
+          container.innerHTML = '<div class="kpi-nodata">No data available</div>';
+          return;
+        }
+
+        // Find max value for bar width scaling
+        const maxVal = Math.max(...top10.map(item => item.total));
+
+        let html = '';
+        top10.forEach(item => {
+          const p = parseCellKey(item.key);
+          const cellLabel = `${p.num}-${p.sensor}`;
+          const barW = maxVal > 0 ? (item.total / maxVal) * 100 : 0;
+          const barClass = getRejBarClass(item.total);
+          const pctClass = getRejPctClass(item.total);
+          html += `<div class="kpi-row" onclick="openKpiRejectionChart(${p.num},'${p.sensor}')" style="cursor:pointer;">
+            <div class="kpi-cell-label" style="color:var(--primary-dark);text-decoration:underline;text-underline-offset:2px;">${cellLabel}</div>
+            <div class="kpi-bar-wrap"><div class="kpi-bar ${barClass}" style="width:${barW}%"></div></div>
+            <div class="kpi-pct ${pctClass}">${item.total}</div>
+          </div>`;
+        });
+        container.innerHTML = html;
+      });
+    }
+
     function toggleKpiExportMenu() {
       document.getElementById('kpiExportMenu').classList.toggle('show');
     }
@@ -3955,22 +4129,41 @@
     });
 
     function getKpiTop10(n) {
-      const entries = kpiData[n].filter(e => e.avg !== null);
-      if (kpiMode === 'best') entries.sort((a, b) => b.avg - a.avg);
-      else entries.sort((a, b) => a.avg - b.avg);
-      const top10 = entries.slice(0, 10);
-      top10.sort(sortCellKeys);
-      return top10;
+      if (kpiDataType === 'rejections') {
+        const entries = kpiRejectionData[n].filter(e => e.total !== null);
+        if (kpiMode === 'best') entries.sort((a, b) => a.total - b.total); // ascending
+        else entries.sort((a, b) => b.total - a.total); // descending
+        const top10 = entries.slice(0, 10);
+        top10.sort(sortCellKeys);
+        return top10;
+      } else {
+        const entries = kpiData[n].filter(e => e.avg !== null);
+        if (kpiMode === 'best') entries.sort((a, b) => b.avg - a.avg);
+        else entries.sort((a, b) => a.avg - b.avg);
+        const top10 = entries.slice(0, 10);
+        top10.sort(sortCellKeys);
+        return top10;
+      }
     }
 
     function kpiCellColor(val) {
-      if (val >= state.thresholds.excellent.min) return { bg: '#DCFCE7', text: '#16A34A' };
-      if (val >= state.thresholds.good.min) return { bg: '#FFF7ED', text: '#EA580C' };
-      return { bg: '#FEF2F2', text: '#DC2626' };
+      if (kpiDataType === 'rejections') {
+        const rt = state.rejThresholds;
+        if (val <= rt.excellent) return { bg: '#DCFCE7', text: '#16A34A' };
+        if (val <= rt.good) return { bg: '#FFF7ED', text: '#EA580C' };
+        return { bg: '#FEF2F2', text: '#DC2626' };
+      } else {
+        if (val >= state.thresholds.excellent.min) return { bg: '#DCFCE7', text: '#16A34A' };
+        if (val >= state.thresholds.good.min) return { bg: '#FFF7ED', text: '#EA580C' };
+        return { bg: '#FEF2F2', text: '#DC2626' };
+      }
     }
 
     function buildKpiExportTable() {
-      if (!kpiData) return '';
+      const isRejection = kpiDataType === 'rejections';
+      if (isRejection && !kpiRejectionData) return '';
+      if (!isRejection && !kpiData) return '';
+
       const modeLabel = kpiMode === 'best' ? 'Top 10 Best Cell' : 'Top 10 Worst Cell';
       const sideLabel = state.currentSide === 'east' ? 'East Side CSM 2' : 'West Side';
       const cols = [3, 7, 30];
@@ -3983,13 +4176,15 @@
 
       let html = `<table style="border-collapse:collapse;">`;
 
-      html += `<tr><td colspan="${totalCols}" style="${bdr}${ff}background:#1E3A5F;color:#FFFFFF;text-align:center;font-size:16px;font-weight:700;padding:12px 8px;letter-spacing:0.5px;">KPI Cell Efficiency - ${sideLabel}</td></tr>`;
+      const mainTitle = isRejection ? 'KPI Rejected Cathodes' : 'KPI Cell Efficiency';
+      html += `<tr><td colspan="${totalCols}" style="${bdr}${ff}background:#1E3A5F;color:#FFFFFF;text-align:center;font-size:16px;font-weight:700;padding:12px 8px;letter-spacing:0.5px;">${mainTitle} - ${sideLabel}</td></tr>`;
 
       html += `<tr><td colspan="${totalCols}" style="${bdr}${ff}background:#2D5F8A;color:#FFFFFF;text-align:center;font-size:14px;font-weight:600;padding:10px 8px;">${modeLabel}</td></tr>`;
 
       html += `<tr>`;
       cols.forEach((n, ci) => {
-        html += `<th colspan="2" style="${bdr}${ff}background:#37474F;color:#FFFFFF;text-align:center;font-size:13px;font-weight:700;padding:10px 8px;">Last ${n} Cycles Avg Efficiency</th>`;
+        const colTitle = isRejection ? `Last ${n} Cycles Total Rejections` : `Last ${n} Cycles Avg Efficiency`;
+        html += `<th colspan="2" style="${bdr}${ff}background:#37474F;color:#FFFFFF;text-align:center;font-size:13px;font-weight:700;padding:10px 8px;">${colTitle}</th>`;
         if (ci < 2) html += `<td style="border:none;width:12px;background:#FFFFFF;"></td>`;
       });
       html += `</tr>`;
@@ -3997,7 +4192,8 @@
       html += `<tr>`;
       cols.forEach((_, ci) => {
         html += `<th style="${bdr}${ff}background:#546E7A;color:#FFFFFF;text-align:center;font-size:11px;font-weight:600;padding:8px 6px;width:90px;">Cell No</th>`;
-        html += `<th style="${bdr}${ff}background:#546E7A;color:#FFFFFF;text-align:center;font-size:11px;font-weight:600;padding:8px 6px;width:90px;">CE%</th>`;
+        const valueHeader = isRejection ? 'Total' : 'CE%';
+        html += `<th style="${bdr}${ff}background:#546E7A;color:#FFFFFF;text-align:center;font-size:11px;font-weight:600;padding:8px 6px;width:90px;">${valueHeader}</th>`;
         if (ci < 2) html += `<td style="border:none;width:12px;background:#FFFFFF;"></td>`;
       });
       html += `</tr>`;
@@ -4010,9 +4206,11 @@
           if (item) {
             const p = parseCellKey(item.key);
             const cellLabel = `${p.num}-${p.sensor}`;
-            const c = kpiCellColor(item.avg);
+            const value = isRejection ? item.total : item.avg;
+            const c = kpiCellColor(value);
+            const displayValue = isRejection ? value : `${value}%`;
             html += `<td style="${bdr}${ff}background:${rowBg};text-align:center;font-size:12px;font-weight:700;padding:7px 6px;color:#1E3A5F;">${cellLabel}</td>`;
-            html += `<td style="${bdr}${ff}background:${c.bg};text-align:center;font-size:13px;font-weight:800;padding:7px 6px;color:${c.text};">${item.avg}%</td>`;
+            html += `<td style="${bdr}${ff}background:${c.bg};text-align:center;font-size:13px;font-weight:800;padding:7px 6px;color:${c.text};">${displayValue}</td>`;
           } else {
             html += `<td style="${bdr}${ff}background:${rowBg};text-align:center;padding:7px 6px;">--</td>`;
             html += `<td style="${bdr}${ff}background:${rowBg};text-align:center;padding:7px 6px;">--</td>`;
@@ -4028,11 +4226,15 @@
 
     function exportKpiExcel() {
       document.getElementById('kpiExportMenu').classList.remove('show');
-      if (!kpiData) return;
+      const isRejection = kpiDataType === 'rejections';
+      if (isRejection && !kpiRejectionData) return;
+      if (!isRejection && !kpiData) return;
+
       const htmlTable = buildKpiExportTable();
       const modeLabel = kpiMode === 'best' ? 'Top_10_Best' : 'Top_10_Worst';
       const side = state.currentSide === 'east' ? 'East_Side' : 'West_Side';
-      const fileName = `KPI_${modeLabel}_${side}_${new Date().toISOString().slice(0,10)}.xls`;
+      const dataType = isRejection ? 'Rejected_Cathodes' : 'Cell_Efficiency';
+      const fileName = `KPI_${dataType}_${modeLabel}_${side}_${new Date().toISOString().slice(0,10)}.xls`;
 
       const excelHtml = `
         <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
@@ -4052,7 +4254,9 @@
 
     function exportKpiImage() {
       document.getElementById('kpiExportMenu').classList.remove('show');
-      if (!kpiData) return;
+      const isRejection = kpiDataType === 'rejections';
+      if (isRejection && !kpiRejectionData) return;
+      if (!isRejection && !kpiData) return;
 
       const modeLabel = kpiMode === 'best' ? 'Top 10 Best Cell' : 'Top 10 Worst Cell';
       const sideLabel = state.currentSide === 'east' ? 'East Side - CSM 2' : 'West Side';
@@ -4082,12 +4286,13 @@
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, totalW, totalH);
 
+      const mainTitle = isRejection ? 'KPI Rejected Cathodes' : 'KPI Cell Efficiency';
       ctx.fillStyle = '#1E3A5F';
       ctx.fillRect(0, 0, totalW, titleH);
       ctx.fillStyle = '#FFFFFF';
       ctx.font = '700 16px Inter, Arial, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(`KPI Cell Efficiency - ${sideLabel}`, totalW / 2, titleH / 2 + 6);
+      ctx.fillText(`${mainTitle} - ${sideLabel}`, totalW / 2, titleH / 2 + 6);
 
       ctx.fillStyle = '#2D5F8A';
       ctx.fillRect(0, titleH, totalW, subtitleH);
@@ -4099,6 +4304,7 @@
         const x = padX + ci * (colWidth + colGap);
         const y = headerH;
 
+        const colTitle = isRejection ? `Last ${n} Cycles Total Rejections` : `Last ${n} Cycles Avg Efficiency`;
         ctx.fillStyle = '#E5E7EB';
         ctx.fillRect(x, y, colWidth, subHeaderH);
         ctx.strokeStyle = '#D1D5DB';
@@ -4106,12 +4312,14 @@
         ctx.fillStyle = '#1F2937';
         ctx.font = '700 13px Inter, Arial, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(`Last ${n} Cycles Avg Efficiency`, x + colWidth / 2, y + subHeaderH / 2 + 5);
+        ctx.fillText(colTitle, x + colWidth / 2, y + subHeaderH / 2 + 5);
 
         const cellW = 70;
         const barW = colWidth - cellW - 60;
         const pctW = 60;
 
+        const valueLabel = isRejection ? 'Total' : 'CE%';
+        const middleLabel = isRejection ? 'Rejected Cathodes' : 'Avg Efficiency';
         ctx.fillStyle = '#F3F4F6';
         ctx.fillRect(x, y + subHeaderH, colWidth, rowH);
         ctx.strokeRect(x, y + subHeaderH, colWidth, rowH);
@@ -4119,8 +4327,8 @@
         ctx.font = '600 11px Inter, Arial, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText('Cell No', x + cellW / 2, y + subHeaderH + rowH / 2 + 4);
-        ctx.fillText('Avg Efficiency', x + cellW + barW / 2, y + subHeaderH + rowH / 2 + 4);
-        ctx.fillText('CE%', x + cellW + barW + pctW / 2, y + subHeaderH + rowH / 2 + 4);
+        ctx.fillText(middleLabel, x + cellW + barW / 2, y + subHeaderH + rowH / 2 + 4);
+        ctx.fillText(valueLabel, x + cellW + barW + pctW / 2, y + subHeaderH + rowH / 2 + 4);
 
         const data = colData[n];
         for (let i = 0; i < 10; i++) {
@@ -4134,7 +4342,8 @@
           if (data[i]) {
             const item = data[i];
             const p = parseCellKey(item.key);
-            const c = kpiCellColor(item.avg);
+            const value = isRejection ? item.total : item.avg;
+            const c = kpiCellColor(value);
 
             ctx.fillStyle = '#1E3A5F';
             ctx.font = '600 11px Inter, Arial, sans-serif';
@@ -4148,7 +4357,16 @@
             ctx.fillStyle = '#E5E7EB';
             roundRect(ctx, barX, barY, maxBarW, barH, 3);
             ctx.fill();
-            const filledW = Math.max((item.avg / 100) * maxBarW, 0);
+
+            // Calculate bar width based on data type
+            let filledW;
+            if (isRejection) {
+              // For rejections, find max in this column and scale proportionally
+              const maxInCol = Math.max(...data.filter(d => d).map(d => d.total));
+              filledW = maxInCol > 0 ? (value / maxInCol) * maxBarW : 0;
+            } else {
+              filledW = Math.max((value / 100) * maxBarW, 0);
+            }
             ctx.fillStyle = c.text;
             roundRect(ctx, barX, barY, filledW, barH, 3);
             ctx.fill();
@@ -4160,7 +4378,8 @@
             ctx.fillStyle = c.text;
             ctx.font = '700 12px Inter, Arial, sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(`${Math.round(item.avg)}%`, x + cellW + barW + pctW / 2, ry + rowH / 2 + 4);
+            const displayValue = isRejection ? value : `${Math.round(value)}%`;
+            ctx.fillText(displayValue, x + cellW + barW + pctW / 2, ry + rowH / 2 + 4);
           } else {
             ctx.fillStyle = '#9CA3AF';
             ctx.font = '600 11px Inter, Arial, sans-serif';
@@ -4173,7 +4392,8 @@
       const link = document.createElement('a');
       const side = state.currentSide === 'east' ? 'East_Side' : 'West_Side';
       const mode = kpiMode === 'best' ? 'Top_10_Best' : 'Top_10_Worst';
-      link.download = `KPI_${mode}_${side}_${new Date().toISOString().slice(0,10)}.png`;
+      const dataType = isRejection ? 'Rejected_Cathodes' : 'Cell_Efficiency';
+      link.download = `KPI_${dataType}_${mode}_${side}_${new Date().toISOString().slice(0,10)}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     }
