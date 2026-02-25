@@ -355,6 +355,16 @@
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
+    .spinner-small {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid #E5E7EB;
+      border-top-color: #3B82F6;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
     #loading-text {
       font-size: 14px;
@@ -1155,6 +1165,19 @@
       transition: background 0.15s;
     }
     .ccs-page-btn:hover { background: #EDF2F7; color: var(--primary); }
+    .ccs-page-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: #F9FAFB;
+    }
+    .ccs-page-btn:disabled:hover {
+      background: #F9FAFB;
+      color: var(--text-secondary);
+    }
+    #ccsPageSize:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
     .ccs-page-num {
       font-size: 12px;
       font-weight: 600;
@@ -1324,7 +1347,7 @@
   <!-- MAIN NAVIGATION -->
   <div id="sub-nav">
     <div class="sub-nav-tab active" onclick="switchDashboard('heatmap')">Cell Efficiency Heatmap</div>
-    <div class="sub-nav-tab" onclick="switchDashboard('kpi')">KPI - Cell Efficiency</div>
+    <div class="sub-nav-tab" onclick="switchDashboard('kpi')">KPI Dashboard</div>
     <div class="sub-nav-tab" onclick="switchDashboard('rejection')">Rejected Cathode Count</div>
     <div class="sub-nav-tab" onclick="switchDashboard('ccs')">Cell Cycle Summary</div>
   </div>
@@ -1400,7 +1423,7 @@
             <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
           </svg>
         </span>
-        <span id="maToggleLabel">Show Dashes</span>
+        <span id="maToggleLabel">Show Non-Productive Days</span>
       </button>
 
       <!-- Export Table Button -->
@@ -1451,9 +1474,9 @@
         </div>
       </div>
     </div>
-    <div id="kpi-loading" style="display:none;text-align:center;padding:60px 0;">
-      <div class="spinner" style="margin:0 auto 16px;"></div>
-      <div style="font-size:14px;color:var(--text-secondary);">Loading KPI data...</div>
+    <div id="kpi-loading" style="display:none;text-align:center;padding:40px;color:#64748B;font-size:14px;">
+      <div class="spinner" style="margin:0 auto 12px;"></div>
+      <span>Loading...</span>
     </div>
     <div id="kpi-content" class="kpi-grid">
       <div class="kpi-column">
@@ -1516,7 +1539,7 @@
     </div>
     <div id="ccs-loading" style="display:none;text-align:center;padding:40px;color:#64748B;font-size:14px;">
       <div class="spinner" style="margin:0 auto 12px;"></div>
-      <span id="ccs-loading-text">Loading cycle data...</span>
+      <span id="ccs-loading-text">Loading...</span>
     </div>
     <div id="ccs-table-container">
       <table id="ccs-table">
@@ -1527,7 +1550,12 @@
       </table>
     </div>
     <div id="ccs-pagination">
-      <div class="ccs-page-info" id="ccsPageInfo">Showing 0 of 0</div>
+      <div class="ccs-page-info">
+        <span id="ccsPageInfo">Showing 0 of 0</span>
+        <span id="ccsPageLoadingIndicator" style="display:none;margin-left:10px;color:#3B82F6;font-size:12px;">
+          <span class="spinner-small"></span> Loading...
+        </span>
+      </div>
       <div class="ccs-page-controls">
         <span class="ccs-page-label">Rows per page:</span>
         <select id="ccsPageSize" onchange="ccsChangePageSize()">
@@ -1549,7 +1577,7 @@
   <!-- LOADING OVERLAY -->
   <div id="loading-overlay">
     <div class="spinner"></div>
-    <div id="loading-text">Loading cell efficiency data...</div>
+    <div id="loading-text">Loading...</div>
   </div>
 
   <!-- COLD SPOT SETTINGS MODAL -->
@@ -1913,6 +1941,80 @@
       return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     }
 
+    // Helper function to format duration for exports
+    function getFormattedDuration(dashboardType) {
+      const now = new Date();
+      let periodLabel = '';
+      let startDate, endDate;
+
+      // Handle different dashboard types
+      if (dashboardType === 'heatmap' || dashboardType === 'rejection') {
+        // Cell Efficiency Heatmap and Rejection Count use state.timePeriod
+        const { start, end } = getDateRange();
+        startDate = start;
+        endDate = end;
+
+        switch (state.timePeriod) {
+          case 'last15': periodLabel = 'Last 15 Days'; break;
+          case 'thisMonth': periodLabel = 'This Month'; break;
+          case 'lastMonth': periodLabel = 'Last Month'; break;
+          case 'custom': periodLabel = 'Custom Period'; break;
+          default: periodLabel = 'Last 15 Days';
+        }
+      } else if (dashboardType === 'ccs') {
+        // Cell Cycle Summary uses ccsState.timePeriod
+        const { start, end } = getCcsDateRange();
+        startDate = start;
+        endDate = end;
+
+        switch (ccsState.timePeriod) {
+          case 'thisWeek': periodLabel = 'This Week'; break;
+          case 'lastWeek': periodLabel = 'Last Week'; break;
+          case 'thisMonth': periodLabel = 'This Month'; break;
+          case 'lastMonth': periodLabel = 'Last Month'; break;
+          case 'custom': periodLabel = 'Custom Period'; break;
+          default: periodLabel = 'This Week';
+        }
+      } else if (dashboardType === 'kpi') {
+        // KPI Dashboard - default to last 30 days
+        endDate = new Date();
+        startDate = new Date();
+        startDate.setDate(startDate.getDate() - 29);
+        startDate.setHours(0, 0, 0, 0);
+        periodLabel = 'Last 30 Days';
+      }
+
+      // Format dates
+      const formatDate = (d) => {
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mon = d.toLocaleString('en-US', { month: 'short' });
+        const yyyy = d.getFullYear();
+        return `${dd}-${mon}-${yyyy}`;
+      };
+
+      const formatDateTime = (d) => {
+        const date = formatDate(d);
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        return `${date} ${hh}:${mm}`;
+      };
+
+      // Check if this is a current/active period
+      const isCurrentPeriod = periodLabel.includes('This') || periodLabel === 'Today';
+
+      let durationStr = '';
+      if (isCurrentPeriod) {
+        // For current periods, show exact time
+        const actualEndTime = new Date(); // Current time of export
+        durationStr = `Duration: ${periodLabel} (${formatDate(startDate)} 00:00 to ${formatDateTime(actualEndTime)})`;
+      } else {
+        // For past periods, just show date range
+        durationStr = `Duration: ${periodLabel} (${formatDate(startDate)} to ${formatDate(endDate)})`;
+      }
+
+      return durationStr;
+    }
+
     function getCellRange() {
       return state.currentSide === 'east' ? CONFIG.eastCells : CONFIG.westCells;
     }
@@ -2021,7 +2123,7 @@
      */
     async function apiLogin() {
       console.log('🔐 Starting authentication...');
-      showLoading('Authenticating...');
+      showLoading('Loading...');
 
       try {
         // Priority 1: Check localStorage for existing Bearer token
@@ -2030,7 +2132,7 @@
           console.log('✅ Using stored Bearer token from localStorage');
           state.authToken = storedToken;
           const userId = localStorage.getItem('userId');
-          showLoading('Authenticated' + (userId ? ` (User: ${userId})` : ''));
+          showLoading('Loading...');
           return true;
         } else {
           console.log('ℹ️  No valid stored token found');
@@ -2042,7 +2144,7 @@
 
         if (ssoToken) {
           console.log('🔑 SSO Token found in URL');
-          showLoading('Validating SSO token...');
+          showLoading('Loading...');
           const validation = await validateSSOToken(ssoToken);
 
           if (validation.valid && validation.token) {
@@ -2059,12 +2161,12 @@
 
             console.log('✅ Authentication successful via SSO token');
             console.log('Bearer token saved to localStorage');
-            showLoading(`Authenticated (User: ${validation.userId})`);
+            showLoading('Loading...');
             return true;
           } else {
             console.warn('❌ SSO token validation failed:', validation.error);
             console.warn('⚠️  Falling back to credentials login');
-            showLoading('SSO validation failed, trying credentials...');
+            showLoading('Loading...');
           }
         } else {
           console.log('ℹ️  No SSO token in URL');
@@ -2185,11 +2287,11 @@
        ================================================ */
     async function loadData() {
       if (!state.authToken) {
-        showLoading('Authenticating...');
+        showLoading('Loading...');
         await apiLogin();
       }
 
-      showLoading('Preparing device list...');
+      showLoading('Loading...');
       buildDeviceMap();
 
       const cellRange = getCellRange();
@@ -2214,13 +2316,13 @@
         tasks.push(async () => {
           const dataC1 = await fetchSensorData(dev.devID, activeDashConfig.sensorC1, startMs, endMs);
           completed++;
-          showLoading(`Loading data... ${completed}/${total}`);
+          showLoading(`Loading...`);
           return { cellNum, sensor: 'C1', data: dataC1 };
         });
         tasks.push(async () => {
           const dataC2 = await fetchSensorData(dev.devID, activeDashConfig.sensorC2, startMs, endMs);
           completed++;
-          showLoading(`Loading data... ${completed}/${total}`);
+          showLoading(`Loading...`);
           return { cellNum, sensor: 'C2', data: dataC2 };
         });
       });
@@ -3398,7 +3500,38 @@
 
       let html = '<table style="border-collapse:collapse;">';
 
-      // Header
+      // Calculate total columns
+      let totalCols = 1 + labels.length; // Cell column + date columns
+      if (!isCombined) totalCols++; // Selection column
+      if (showAvgColExport) totalCols++; // Average column
+      if (showExcColExport) totalCols++; // Excellent column
+
+      // Main header: Cell Efficiency Monitoring
+      html += `<tr><th colspan="${totalCols}" style="${cellStyle}background:#0F172A;color:#FFFFFF;font-weight:700;font-size:16px;padding:12px;">Cell Efficiency Monitoring</th></tr>`;
+
+      // Sub-header with dashboard name and context
+      let dashboardName = isRejExport ? 'Rejected Cathode Count' : 'Cell Efficiency Heatmap';
+      let cycleInfo = isMovAvgExport ? 'Last 3 Cycle Moving Average' : 'Individual Cycle';
+      let effInfo = isCombined ? 'Combined Efficiency' : 'C1/C2 Efficiency';
+      let sideInfo = state.currentSide === 'east' ? 'East Side CSM 2' : 'West Side';
+
+      let subtitle = '';
+      if (isRejExport) {
+        subtitle = `${dashboardName} | ${cycleInfo} | ${sideInfo}`;
+      } else {
+        subtitle = `${dashboardName} | ${cycleInfo} | ${effInfo} | ${sideInfo}`;
+      }
+
+      html += `<tr><th colspan="${totalCols}" style="${cellStyle}background:#1E3A5F;color:#FFFFFF;font-weight:600;font-size:14px;padding:10px;">${subtitle}</th></tr>`;
+
+      // Duration line
+      const duration = getFormattedDuration(isRejExport ? 'rejection' : 'heatmap');
+      html += `<tr><th colspan="${totalCols}" style="${cellStyle}background:#F0F4F8;color:#4A5568;font-weight:500;font-size:12px;padding:8px;">${duration}</th></tr>`;
+
+      // Empty row for spacing
+      html += `<tr><td colspan="${totalCols}" style="height:10px;border:none;"></td></tr>`;
+
+      // Column headers
       html += '<tr>';
       html += `<th style="${headerStyle}min-width:100px;">Cell</th>`;
       if (!isCombined) html += `<th style="${headerStyle}">Selection</th>`;
@@ -3642,8 +3775,22 @@
       const tbl = container.querySelector('table');
       const tRows = tbl.querySelectorAll('tr');
 
+      // Find the actual column count by looking for the first row without colspan
+      // (first few rows are headers with full-width colspan)
+      let colCount = 0;
+      for (let i = 0; i < tRows.length; i++) {
+        const cells = tRows[i].querySelectorAll('th, td');
+        let totalCols = 0;
+        cells.forEach(cell => {
+          const colspan = parseInt(cell.getAttribute('colspan')) || 1;
+          totalCols += colspan;
+        });
+        if (totalCols > colCount) {
+          colCount = totalCols;
+        }
+      }
+
       const rowHeights = [];
-      const colCount = tRows[0].querySelectorAll('th, td').length;
       const colWidths = new Array(colCount).fill(65);
 
       const measureCanvas = document.createElement('canvas');
@@ -3651,7 +3798,22 @@
       mCtx.font = '600 13px Inter, Arial, sans-serif';
 
       tRows.forEach((row, ri) => {
-        rowHeights.push(ri === 0 ? 36 : 28);
+        // Calculate row height based on position
+        // Row 0: Main header (larger)
+        // Row 1: Sub-header
+        // Row 2: Duration
+        // Row 3: Empty spacing
+        // Row 4: Column headers
+        // Row 5+: Data rows
+        let rowHeight = 28; // Default data row height
+        if (ri === 0) rowHeight = 40; // Main header
+        else if (ri === 1) rowHeight = 32; // Sub-header
+        else if (ri === 2) rowHeight = 28; // Duration
+        else if (ri === 3) rowHeight = 10; // Spacing
+        else if (ri === 4) rowHeight = 36; // Column headers
+
+        rowHeights.push(rowHeight);
+
         const cells = row.querySelectorAll('th, td');
         let ci = 0;
         cells.forEach(cell => {
@@ -3705,13 +3867,20 @@
           const cellH = rowHeights.slice(ri, ri + rowspan).reduce((a, b) => a + b, 0);
           const x = colWidths.slice(0, ci).reduce((a, b) => a + b, 0);
 
-          const bgColor = cell.style.background || cell.style.backgroundColor || (ri === 0 ? '#FAFBFC' : '#FFFFFF');
+          const bgColor = cell.style.background || cell.style.backgroundColor || (ri <= 4 ? '#FAFBFC' : '#FFFFFF');
           ctx.fillStyle = bgColor;
           ctx.fillRect(x, y, cellW, cellH);
 
-          const textColor = cell.style.color || (ri === 0 ? '#4A5568' : '#1A202C');
+          const textColor = cell.style.color || (ri <= 4 ? '#4A5568' : '#1A202C');
           const fw = cell.style.fontWeight || '500';
-          const fs = ri === 0 ? 13 : 12;
+
+          // Font size based on row type
+          let fs = 12; // Default data row
+          if (ri === 0) fs = 16; // Main header
+          else if (ri === 1) fs = 14; // Sub-header
+          else if (ri === 2) fs = 12; // Duration
+          else if (ri === 4) fs = 13; // Column headers
+
           ctx.fillStyle = textColor;
           ctx.font = `${fw} ${fs}px Inter, Arial, sans-serif`;
           ctx.textAlign = 'center';
@@ -3864,14 +4033,14 @@
         tasks.push(async () => {
           const data = await fetchSensorData(dev.devID, CONFIG.sensorC1, startMs, endMs);
           loadedCount++;
-          document.getElementById('kpi-loading').textContent = `Loading KPI data... ${loadedCount}/${totalTasks}`;
+          document.getElementById('kpi-loading').textContent = `Loading...`;
           return { cellNum, sensor: 'C1', data, type: 'efficiency' };
         });
 
         tasks.push(async () => {
           const data = await fetchSensorData(dev.devID, CONFIG.sensorC2, startMs, endMs);
           loadedCount++;
-          document.getElementById('kpi-loading').textContent = `Loading KPI data... ${loadedCount}/${totalTasks}`;
+          document.getElementById('kpi-loading').textContent = `Loading...`;
           return { cellNum, sensor: 'C2', data, type: 'efficiency' };
         });
 
@@ -3879,14 +4048,14 @@
         tasks.push(async () => {
           const data = await fetchSensorData(dev.devID, 'D1', startMs, endMs);
           loadedCount++;
-          document.getElementById('kpi-loading').textContent = `Loading KPI data... ${loadedCount}/${totalTasks}`;
+          document.getElementById('kpi-loading').textContent = `Loading...`;
           return { cellNum, sensor: 'C1', data, type: 'rejection' };
         });
 
         tasks.push(async () => {
           const data = await fetchSensorData(dev.devID, 'D7', startMs, endMs);
           loadedCount++;
-          document.getElementById('kpi-loading').textContent = `Loading KPI data... ${loadedCount}/${totalTasks}`;
+          document.getElementById('kpi-loading').textContent = `Loading...`;
           return { cellNum, sensor: 'C2', data, type: 'rejection' };
         });
       });
@@ -4176,10 +4345,20 @@
 
       let html = `<table style="border-collapse:collapse;">`;
 
-      const mainTitle = isRejection ? 'KPI Rejected Cathodes' : 'KPI Cell Efficiency';
-      html += `<tr><td colspan="${totalCols}" style="${bdr}${ff}background:#1E3A5F;color:#FFFFFF;text-align:center;font-size:16px;font-weight:700;padding:12px 8px;letter-spacing:0.5px;">${mainTitle} - ${sideLabel}</td></tr>`;
+      // Main header: Cell Efficiency Monitoring
+      html += `<tr><td colspan="${totalCols}" style="${bdr}${ff}background:#0F172A;color:#FFFFFF;text-align:center;font-size:16px;font-weight:700;padding:12px 8px;letter-spacing:0.5px;">Cell Efficiency Monitoring</td></tr>`;
 
-      html += `<tr><td colspan="${totalCols}" style="${bdr}${ff}background:#2D5F8A;color:#FFFFFF;text-align:center;font-size:14px;font-weight:600;padding:10px 8px;">${modeLabel}</td></tr>`;
+      // Sub-header with dashboard context
+      const dataTypeLabel = isRejection ? 'Rejected Cathodes' : 'Cell Efficiency';
+      const subtitle = `KPI Dashboard | ${dataTypeLabel} | ${modeLabel} | ${sideLabel}`;
+      html += `<tr><td colspan="${totalCols}" style="${bdr}${ff}background:#1E3A5F;color:#FFFFFF;text-align:center;font-size:14px;font-weight:600;padding:10px 8px;">${subtitle}</td></tr>`;
+
+      // Duration line
+      const duration = getFormattedDuration('kpi');
+      html += `<tr><td colspan="${totalCols}" style="${bdr}${ff}background:#F0F4F8;color:#4A5568;text-align:center;font-size:12px;font-weight:500;padding:8px 6px;">${duration}</td></tr>`;
+
+      // Empty row for spacing
+      html += `<tr><td colspan="${totalCols}" style="height:8px;border:none;background:#FFFFFF;"></td></tr>`;
 
       html += `<tr>`;
       cols.forEach((n, ci) => {
@@ -4286,7 +4465,7 @@
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, totalW, totalH);
 
-      const mainTitle = isRejection ? 'KPI Rejected Cathodes' : 'KPI Cell Efficiency';
+      const mainTitle = isRejection ? 'KPI Rejected Cathodes' : 'KPI Dashboard';
       ctx.fillStyle = '#1E3A5F';
       ctx.fillRect(0, 0, totalW, titleH);
       ctx.fillStyle = '#FFFFFF';
@@ -4563,11 +4742,14 @@
       customEnd: null,
       rows: [],
       totalCount: 0,
+      serverTotalCount: 0, // Total count from server
       page: 1,
       pageSize: 50,
       filters: { cellNumber: null, cellSelection: null },
       sortCol: null,
-      sortDir: null
+      sortDir: null,
+      loadedPages: new Set(), // Track which pages we've loaded from server
+      isLoadingMore: false // Flag to prevent concurrent loads
     };
 
     function getCcsDateRange() {
@@ -4756,69 +4938,62 @@
       }
     }
 
-    async function loadCcsData() {
-      if (!state.authToken) {
-        await apiLogin();
+    // Function to load a specific page of cycle data from the server
+    async function loadCcsPageData(serverPage) {
+      if (ccsState.loadedPages.has(serverPage) || ccsState.isLoadingMore) {
+        return; // Already loaded or currently loading
       }
-      const loading = document.getElementById('ccs-loading');
-      const tableContainer = document.getElementById('ccs-table-container');
-      loading.style.display = 'block';
-      tableContainer.style.display = 'none';
-      document.getElementById('ccs-loading-text').textContent = 'Loading cycle data...';
 
-      const { start, end } = getCcsDateRange();
-      const authVal = state.authToken.startsWith('Bearer ') ? state.authToken : 'Bearer ' + state.authToken;
-
-      const eastRange = state.currentSide === 'east' ? [67, 132] : [1, 66];
-      const allRows = [];
-      let page = 1;
-      const limit = 200;
-      let hasMore = true;
+      ccsState.isLoadingMore = true;
 
       try {
-        while (hasMore) {
-          const body = {
-            devID: CCS_CONFIG.devID,
-            page: page,
-            limit: limit,
-            rawData: true,
-            sort: [{ D12: 'desc' }],
-            search: {
-              data: {
-                D12: [{
-                  startDate: start.toISOString(),
-                  endDate: end.toISOString(),
-                  timeFormat: 'YYYY-MM-DD HH:mm:ss'
-                }]
-              }
+        const { start, end } = getCcsDateRange();
+        const authVal = state.authToken.startsWith('Bearer ') ? state.authToken : 'Bearer ' + state.authToken;
+        const eastRange = state.currentSide === 'east' ? [67, 132] : [1, 66];
+
+        const body = {
+          devID: CCS_CONFIG.devID,
+          page: serverPage,
+          limit: ccsState.pageSize, // Use current page size
+          rawData: true,
+          sort: [{ D12: 'desc' }],
+          search: {
+            data: {
+              D12: [{
+                startDate: start.toISOString(),
+                endDate: end.toISOString(),
+                timeFormat: 'YYYY-MM-DD HH:mm:ss'
+              }]
             }
-          };
+          }
+        };
 
-          const ctrl = new AbortController();
-          const tid = setTimeout(() => ctrl.abort(), 30000);
-          const resp = await fetch(CONFIG.apiBase + '/account/table/getRows3', {
-            method: 'PUT',
-            headers: {
-              'Authorization': authVal,
-              'Content-Type': 'application/json',
-              'Origin': CONFIG.origin
-            },
-            body: JSON.stringify(body),
-            signal: ctrl.signal
-          });
-          clearTimeout(tid);
-          const result = await resp.json();
+        const ctrl = new AbortController();
+        const tid = setTimeout(() => ctrl.abort(), 30000);
+        const resp = await fetch(CONFIG.apiBase + '/account/table/getRows3', {
+          method: 'PUT',
+          headers: {
+            'Authorization': authVal,
+            'Content-Type': 'application/json',
+            'Origin': CONFIG.origin
+          },
+          body: JSON.stringify(body),
+          signal: ctrl.signal
+        });
+        clearTimeout(tid);
+        const result = await resp.json();
 
-          if (!result.success || !result.data) break;
-
+        if (result.success && result.data) {
           const rows = result.data.rows || [];
+          const newRows = [];
+
           rows.forEach(r => {
             const d = r.data || {};
             const cellNum = parseInt(d.D2);
             if (isNaN(cellNum)) return;
             if (cellNum < eastRange[0] || cellNum > eastRange[1]) return;
 
-            allRows.push({
+            newRows.push({
               cellNumber: d.D2,
               cellSelection: d.D3,
               cycleStart: d.D11,
@@ -4827,63 +5002,108 @@
               numCathodes: d.D4,
               goodCathodes: d.D5,
               badCathodes: d.D6,
-              coldSpotCathodes: 0, // Will be calculated when detail is fetched
+              coldSpotCathodes: 0, // Will be calculated lazily
               sumGoodWeight: d.D7,
               weight57: d.D10,
               busbarLoad: d.D14,
               ce: d.D16,
               time: r.createdAt || d.D12,
               strippingStart: d.D0,
-              strippingEnd: d.D19
+              strippingEnd: d.D19,
+              _serverPage: serverPage, // Track which server page this came from
+              _serverIndex: (serverPage - 1) * ccsState.pageSize + ccsState.rows.length // Track position
             });
           });
 
-          document.getElementById('ccs-loading-text').textContent = `Loading... ${allRows.length} rows`;
-          const totalCount = result.data.totalCount || 0;
-          if (page * limit >= totalCount) hasMore = false;
-          else page++;
+          // Add new rows to state
+          ccsState.rows.push(...newRows);
+          ccsState.loadedPages.add(serverPage);
+          ccsState.serverTotalCount = result.data.totalCount || 0;
+
+          console.log(`✅ Loaded page ${serverPage}: ${newRows.length} rows (total: ${ccsState.rows.length}/${ccsState.serverTotalCount})`);
         }
       } catch (e) {
-        console.error('CCS data load error:', e);
+        console.error(`CCS page ${serverPage} load error:`, e);
+      } finally {
+        ccsState.isLoadingMore = false;
       }
+    }
 
-      ccsState.rows = allRows;
-      ccsState.totalCount = allRows.length;
+    async function loadCcsData() {
+      if (!state.authToken) {
+        await apiLogin();
+      }
+      const loading = document.getElementById('ccs-loading');
+      const tableContainer = document.getElementById('ccs-table-container');
+      loading.style.display = 'block';
+      tableContainer.style.display = 'none';
+      document.getElementById('ccs-loading-text').textContent = 'Loading...';
+
+      // Reset state for fresh load
+      ccsState.rows = [];
+      ccsState.loadedPages.clear();
+      ccsState.serverTotalCount = 0;
+      window.allCathodeDataCache = [];
+
+      // Load only the first page
+      await loadCcsPageData(1);
+
+      ccsState.totalCount = ccsState.serverTotalCount;
       ccsState.page = 1;
       ccsState.filters = { cellNumber: null, cellSelection: null };
       ccsState.sortCol = null;
       ccsState.sortDir = null;
 
       // Load cold spot thresholds and cache globally
-      document.getElementById('ccs-loading-text').textContent = 'Loading cold spot configuration...';
       const coldSpotThresholds = await loadColdSpotConfig();
       globalColdSpotThresholds = coldSpotThresholds;
 
-      // Fetch ALL cathode data in ONE API call for the entire date range
-      document.getElementById('ccs-loading-text').textContent = 'Loading cathode data...';
-      console.log(`📊 Fetching cathode data for range: ${start.toISOString()} → ${end.toISOString()}`);
-      const allCathodeData = await fetchAllCathodeData(start, end);
-      console.log(`📊 Total cathode records fetched: ${allCathodeData.length}`);
-      if (allCathodeData.length > 0) {
-        console.log(`📊 First cathode: ${allCathodeData[0].postTime}`);
-        console.log(`📊 Last cathode: ${allCathodeData[allCathodeData.length - 1].postTime}`);
+      // Fetch cathode data ONLY for the visible rows (first page)
+      await loadCathodeDataForVisibleRows();
+
+      loading.style.display = 'none';
+      tableContainer.style.display = '';
+      renderCcsTable();
+    }
+
+    // Function to load cathode data only for currently loaded cycle rows
+    async function loadCathodeDataForVisibleRows() {
+      if (ccsState.rows.length === 0) return;
+
+      // Use the same date range logic as old version - fetch for entire selected period
+      // This ensures we get all cathode data even if timestamps don't align perfectly
+      const { start, end } = getCcsDateRange();
+
+      console.log(`📊 Fetching cathode data for date range: ${start.toISOString()} → ${end.toISOString()}`);
+      const cathodeData = await fetchAllCathodeData(start, end);
+      console.log(`📊 Cathode records fetched: ${cathodeData.length}`);
+
+      // Merge with existing cache or create new
+      if (!window.allCathodeDataCache) {
+        window.allCathodeDataCache = cathodeData;
+      } else {
+        // Add new data and remove duplicates
+        const existingTimes = new Set(window.allCathodeDataCache.map(c => c.postTime));
+        const newData = cathodeData.filter(c => !existingTimes.has(c.postTime));
+        window.allCathodeDataCache.push(...newData);
+        console.log(`📊 Added ${newData.length} new cathode records to cache`);
       }
 
-      // Group cathode data by cycle and calculate cold spot counts
-      document.getElementById('ccs-loading-text').textContent = 'Calculating cold spot cathodes...';
-      allRows.forEach((row, idx) => {
+      // Pre-populate detail cache for loaded rows (same as old version)
+      // This ensures row expansion works immediately without additional API calls
+      const coldSpotThresholds = globalColdSpotThresholds || await loadColdSpotConfig();
+      ccsState.rows.forEach((row, idx) => {
         const cacheKey = `${row.strippingStart}_${row.strippingEnd}`;
 
         // Skip if strippingStart is invalid
         if (!row.strippingStart || row.strippingStart === 'null' || row.strippingStart === 'NaT') {
-          console.warn(`⚠️  Row ${idx}: Invalid strippingStart (${row.strippingStart}), skipping cathode data`);
           row.coldSpotCathodes = 0;
           ccsDetailCache[cacheKey] = [];
           return;
         }
 
-        // Filter cathode data for this specific cycle
-        const cathodeRows = allCathodeData.filter(c => {
+        // Filter cathode data for this specific cycle (same logic as old version)
+        const cathodeRows = cathodeData.filter(c => {
           try {
             const cathodeTime = new Date(c.postTime).getTime();
             const cycleStart = new Date(row.strippingStart).getTime();
@@ -4911,24 +5131,103 @@
         }).length;
 
         row.coldSpotCathodes = coldSpotCount;
-        ccsDetailCache[cacheKey] = cathodeRows;
+        ccsDetailCache[cacheKey] = cathodeRows; // Pre-populate cache
 
         // Debug log for first few rows
         if (idx < 3) {
           console.log(`Row ${idx}: Cell ${row.cellNumber} ${row.cellSelection}`);
-          console.log(`  Cycle: ${row.cycleStart} → ${row.cycleEnd}`);
           console.log(`  Stripping: ${row.strippingStart} → ${row.strippingEnd}`);
           console.log(`  Cathodes found: ${cathodeRows.length}, Cold Spot: ${coldSpotCount}`);
-          if (cathodeRows.length > 0) {
-            console.log(`  First cathode time: ${cathodeRows[0].postTime}`);
-            console.log(`  Last cathode time: ${cathodeRows[cathodeRows.length - 1].postTime}`);
+        }
+      });
+    }
+
+    // Helper function to calculate cold spot cathodes for a single row (lazy calculation)
+    function calculateColdSpotForRow(row) {
+      const cacheKey = `${row.strippingStart}_${row.strippingEnd}`;
+
+      // If already cached in detail cache, calculate from there
+      if (ccsDetailCache[cacheKey]) {
+        const coldSpotCount = ccsDetailCache[cacheKey].filter(c => {
+          const pw = parseFloat(c.preWeight);
+          return !isNaN(pw) && pw < globalColdSpotThresholds.coldSpot;
+        }).length;
+        row.coldSpotCathodes = coldSpotCount;
+        return coldSpotCount;
+      }
+
+      // Skip if strippingStart is invalid
+      if (!row.strippingStart || row.strippingStart === 'null' || row.strippingStart === 'NaT') {
+        row.coldSpotCathodes = 0;
+        ccsDetailCache[cacheKey] = [];
+        return 0;
+      }
+
+      // Calculate from scratch using cached cathode data
+      const allCathodeData = window.allCathodeDataCache || [];
+
+      // Determine end time for debug logging
+      let debugEndTime;
+      if (row.strippingEnd && row.strippingEnd !== 'NaT' && row.strippingEnd !== 'null' && row.strippingEnd !== 'undefined') {
+        debugEndTime = row.strippingEnd;
+      } else if (row.cycleEnd && row.cycleEnd !== 'NaT' && row.cycleEnd !== 'null') {
+        debugEndTime = row.cycleEnd + ' (fallback from cycleEnd)';
+      } else {
+        debugEndTime = new Date().toISOString() + ' (fallback to current time)';
+      }
+
+      // Debug logging for first time
+      if (!window._debugCathodeFilter) {
+        console.log(`🔍 DEBUG: Filtering cathode data for row:`, {
+          cellNumber: row.cellNumber,
+          cellSelection: row.cellSelection,
+          filteringWithStartTime: row.strippingStart,
+          filteringWithEndTime: debugEndTime,
+          rawCycleStart: row.cycleStart,
+          rawCycleEnd: row.cycleEnd,
+          rawStrippingStart: row.strippingStart,
+          rawStrippingEnd: row.strippingEnd,
+          totalCathodeRecords: allCathodeData.length,
+          sampleCathode: allCathodeData[0]
+        });
+        window._debugCathodeFilter = true;
+      }
+
+      // Use same filtering logic as old version for consistency
+      const cathodeRows = allCathodeData.filter(c => {
+        try {
+          const cathodeTime = new Date(c.postTime).getTime();
+          const cycleStart = new Date(row.strippingStart).getTime();
+          const cycleEnd = row.strippingEnd ? new Date(row.strippingEnd).getTime() : Date.now();
+
+          if (isNaN(cathodeTime) || isNaN(cycleStart) || isNaN(cycleEnd)) {
+            return false;
           }
+
+          return cathodeTime >= cycleStart && cathodeTime <= cycleEnd;
+        } catch (e) {
+          return false;
         }
       });
 
-      loading.style.display = 'none';
-      tableContainer.style.display = '';
-      renderCcsTable();
+      console.log(`📊 Filtered ${cathodeRows.length} cathodes for cell ${row.cellNumber} (${row.cellSelection})`);
+
+      // Limit to 57 rows as per requirements
+      if (cathodeRows.length > 57) {
+        console.log(`⚠️  Limiting cathode rows from ${cathodeRows.length} to 57`);
+        cathodeRows.splice(57);
+      }
+
+      // Calculate cold spot count
+      const coldSpotCount = cathodeRows.filter(c => {
+        const pw = parseFloat(c.preWeight);
+        return !isNaN(pw) && pw < globalColdSpotThresholds.coldSpot;
+      }).length;
+
+      row.coldSpotCathodes = coldSpotCount;
+      ccsDetailCache[cacheKey] = cathodeRows;
+
+      return coldSpotCount;
     }
 
     function formatCcsDateTime(val) {
@@ -5036,11 +5335,24 @@
 
       const frozenStyle = (ci) => ci < CCS_FROZEN_COUNT ? `left:${ccsFrozenLeftCache[ci]}px;` : '';
 
+      const { page, pageSize, serverTotalCount } = ccsState;
+
+      // Get filtered and sorted rows (for client-side filtering if active)
       const displayRows = getCcsFilteredSortedRows();
-      const { page, pageSize } = ccsState;
-      const totalPages = Math.max(1, Math.ceil(displayRows.length / pageSize));
+
+      // Check if client-side filters are active
+      const hasFilters = (ccsState.filters.cellNumber && ccsState.filters.cellNumber.length > 0) ||
+                        (ccsState.filters.cellSelection && ccsState.filters.cellSelection.length > 0);
+
+      // Calculate pagination:
+      // - If filters active: use displayRows.length (client-side filtered count)
+      // - If no filters: use serverTotalCount (total count from server)
+      const totalCount = hasFilters ? displayRows.length : serverTotalCount;
+      const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
       const startIdx = (page - 1) * pageSize;
       const endIdx = Math.min(startIdx + pageSize, displayRows.length);
+
+      // Get rows for current page from displayRows
       const pageRows = displayRows.slice(startIdx, endIdx);
 
       let bodyHTML = '';
@@ -5053,6 +5365,12 @@
           bodyHTML += `<td class="${frozenCls(0)}" style="${frozenStyle(0)}color:#94A3B8;font-weight:500;">${rowIdx + 1}</td>`;
           cols.forEach((c, ci) => {
             let val = row[c.key];
+
+            // Lazy calculation for coldSpotCathodes only when rendering
+            if (c.key === 'coldSpotCathodes') {
+              val = calculateColdSpotForRow(row);
+            }
+
             if (val === null || val === undefined || val === '') val = null;
             const colIdx = ci + 1;
             const fc = frozenCls(colIdx);
@@ -5089,8 +5407,8 @@
       }
       tbody.innerHTML = bodyHTML;
 
-      document.getElementById('ccsPageInfo').textContent = displayRows.length > 0
-        ? `Showing ${startIdx + 1} - ${endIdx} of ${displayRows.length}`
+      document.getElementById('ccsPageInfo').textContent = totalCount > 0
+        ? `Showing ${startIdx + 1} - ${endIdx} of ${totalCount}`
         : 'No records';
       document.getElementById('ccsPageNum').textContent = `${page} / ${totalPages}`;
     }
@@ -5198,6 +5516,7 @@
       document.querySelectorAll('.ccs-data-row.ccs-row-expanded').forEach(r => r.classList.remove('ccs-row-expanded'));
       trEl.classList.add('ccs-row-expanded');
 
+      // Get the filtered/sorted rows (same as in renderCcsTable)
       const displayRows = getCcsFilteredSortedRows();
       const row = displayRows[rowIdx];
       if (!row) return;
@@ -5205,17 +5524,29 @@
       const colSpan = CCS_CONFIG.columns.length + 1;
       const detailTr = document.createElement('tr');
       detailTr.className = 'ccs-detail-row';
-      detailTr.innerHTML = `<td colspan="${colSpan}"><div class="ccs-detail-wrap"><div class="ccs-sub-loading"><div class="spinner" style="margin:0 auto 8px;width:22px;height:22px;border-width:2px;"></div>Loading cathode details...</div></div></td>`;
+      detailTr.innerHTML = `<td colspan="${colSpan}"><div class="ccs-detail-wrap"><div class="ccs-sub-loading"><div class="spinner" style="margin:0 auto 8px;width:22px;height:22px;border-width:2px;"></div>Loading...</div></div></td>`;
       trEl.after(detailTr);
 
       const cacheKey = `${row.strippingStart}_${row.strippingEnd}`;
       let cathodeRows;
+
+      // First, try to populate cache if not already done
+      if (!ccsDetailCache[cacheKey]) {
+        console.log(`🔍 Cache miss for ${cacheKey}, calculating...`);
+        // Try to calculate using existing cathode data cache
+        calculateColdSpotForRow(row);
+      }
+
+      // Now check if cache is populated
       if (ccsDetailCache[cacheKey]) {
         cathodeRows = ccsDetailCache[cacheKey];
+        console.log(`✅ Using cached cathode data: ${cathodeRows.length} rows`);
       } else {
-        // This shouldn't happen since we preload, but fallback just in case
+        // Fallback: fetch directly from API
+        console.log(`⚠️ Cache still empty, fetching from API...`);
         cathodeRows = await fetchCathodeDetail(row.strippingStart, row.strippingEnd);
         ccsDetailCache[cacheKey] = cathodeRows;
+        console.log(`✅ Fetched from API: ${cathodeRows.length} rows`);
       }
 
       if (!ccsDetailPageState[cacheKey]) ccsDetailPageState[cacheKey] = { page: 1, pageSize: 25, statusFilter: null };
@@ -5672,19 +6003,88 @@
       }
     }
 
-    function ccsChangePageSize() {
-      ccsState.pageSize = parseInt(document.getElementById('ccsPageSize').value);
+    async function ccsChangePageSize() {
+      const newPageSize = parseInt(document.getElementById('ccsPageSize').value);
+      const oldPageSize = ccsState.pageSize;
+
+      if (newPageSize === oldPageSize) return;
+
+      ccsState.pageSize = newPageSize;
       ccsState.page = 1;
-      renderCcsTable();
+
+      // Clear loaded pages and reload data with new page size
+      ccsState.rows = [];
+      ccsState.loadedPages.clear();
+      window.allCathodeDataCache = [];
+
+      // Show inline loading indicator
+      const loadingIndicator = document.getElementById('ccsPageLoadingIndicator');
+      if (loadingIndicator) {
+        loadingIndicator.style.display = 'inline';
+      }
+
+      // Disable pagination buttons during load
+      const pageButtons = document.querySelectorAll('.ccs-page-btn');
+      const pageSizeSelect = document.getElementById('ccsPageSize');
+      pageButtons.forEach(btn => btn.disabled = true);
+      if (pageSizeSelect) pageSizeSelect.disabled = true;
+
+      try {
+        await loadCcsPageData(1);
+        await loadCathodeDataForVisibleRows();
+      } catch (e) {
+        console.error('Error changing page size:', e);
+        alert('Error loading data. Please try again.');
+      } finally {
+        // Hide loading indicator and re-enable controls
+        if (loadingIndicator) {
+          loadingIndicator.style.display = 'none';
+        }
+        pageButtons.forEach(btn => btn.disabled = false);
+        if (pageSizeSelect) pageSizeSelect.disabled = false;
+        renderCcsTable();
+      }
     }
 
-    function ccsGoPage(action) {
-      const displayRows = getCcsFilteredSortedRows();
-      const totalPages = Math.max(1, Math.ceil(displayRows.length / ccsState.pageSize));
+    async function ccsGoPage(action) {
+      const totalServerPages = Math.max(1, Math.ceil(ccsState.serverTotalCount / ccsState.pageSize));
+
       if (action === 'first') ccsState.page = 1;
       else if (action === 'prev') ccsState.page = Math.max(1, ccsState.page - 1);
-      else if (action === 'next') ccsState.page = Math.min(totalPages, ccsState.page + 1);
-      else if (action === 'last') ccsState.page = totalPages;
+      else if (action === 'next') ccsState.page = Math.min(totalServerPages, ccsState.page + 1);
+      else if (action === 'last') ccsState.page = totalServerPages;
+
+      // Check if we need to load more data from server
+      const serverPage = ccsState.page;
+      if (!ccsState.loadedPages.has(serverPage)) {
+        // Show inline loading indicator
+        const loadingIndicator = document.getElementById('ccsPageLoadingIndicator');
+        if (loadingIndicator) {
+          loadingIndicator.style.display = 'inline';
+        }
+
+        // Disable pagination buttons during load
+        const pageButtons = document.querySelectorAll('.ccs-page-btn');
+        const pageSizeSelect = document.getElementById('ccsPageSize');
+        pageButtons.forEach(btn => btn.disabled = true);
+        if (pageSizeSelect) pageSizeSelect.disabled = true;
+
+        try {
+          await loadCcsPageData(serverPage);
+          await loadCathodeDataForVisibleRows();
+        } catch (e) {
+          console.error('Error loading page:', e);
+          alert('Error loading page. Please try again.');
+        } finally {
+          // Hide loading indicator and re-enable controls
+          if (loadingIndicator) {
+            loadingIndicator.style.display = 'none';
+          }
+          pageButtons.forEach(btn => btn.disabled = false);
+          if (pageSizeSelect) pageSizeSelect.disabled = false;
+        }
+      }
+
       renderCcsTable();
     }
 
@@ -5703,7 +6103,22 @@
       const side = state.currentSide === 'east' ? 'East Side CSM 2' : 'West Side';
       const exportRows = getCcsFilteredSortedRows();
       let html = '<table style="border-collapse:collapse;">';
-      html += `<tr><th colspan="${cols.length + 1}" style="${cs}background:#0F172A;color:#FFFFFF;font-weight:700;font-size:14px;padding:10px;">Cell Cycle Summary - ${side}</th></tr>`;
+
+      // Main header: Cell Efficiency Monitoring
+      html += `<tr><th colspan="${cols.length + 1}" style="${cs}background:#0F172A;color:#FFFFFF;font-weight:700;font-size:16px;padding:12px;">Cell Efficiency Monitoring</th></tr>`;
+
+      // Sub-header with dashboard context
+      const subtitle = `Cell Cycle Summary | ${side}`;
+      html += `<tr><th colspan="${cols.length + 1}" style="${cs}background:#1E3A5F;color:#FFFFFF;font-weight:600;font-size:14px;padding:10px;">${subtitle}</th></tr>`;
+
+      // Duration line
+      const duration = getFormattedDuration('ccs');
+      html += `<tr><th colspan="${cols.length + 1}" style="${cs}background:#F0F4F8;color:#4A5568;font-weight:500;font-size:12px;padding:8px;">${duration}</th></tr>`;
+
+      // Empty row for spacing
+      html += `<tr><td colspan="${cols.length + 1}" style="height:10px;border:none;"></td></tr>`;
+
+      // Column headers
       html += '<tr><th style="' + hs + '">#</th>';
       cols.forEach(c => { html += `<th style="${hs}">${c.label}</th>`; });
       html += '</tr>';
