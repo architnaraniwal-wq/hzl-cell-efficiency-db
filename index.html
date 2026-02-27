@@ -7,6 +7,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.6.0/jspdf.plugin.autotable.min.js"></script>
   <style>
     :root {
       --primary: #2E7D6F;
@@ -298,17 +300,20 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 7px 14px;
-      background: #37474F;
+      padding: 8px 18px;
+      background: var(--text-primary);
       color: #FFFFFF;
       border: none;
-      border-radius: var(--radius-sm);
+      border-radius: 8px;
       font-size: 13px;
-      font-weight: 500;
+      font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: background 0.15s;
+      font-family: inherit;
     }
-    .rej-settings-btn:hover { background: #455A64; }
+    .rej-settings-btn:hover {
+      background: #334155;
+    }
     .rej-settings-btn svg { flex-shrink: 0; }
 
     .ma-toggle-btn {
@@ -316,7 +321,7 @@
       align-items: center;
       gap: 6px;
       padding: 7px 14px;
-      background: #37474F;
+      background: var(--primary-dark);
       color: #FFFFFF;
       border: none;
       border-radius: var(--radius-sm);
@@ -325,13 +330,16 @@
       cursor: pointer;
       transition: all 0.2s;
     }
-    .ma-toggle-btn:hover { background: #455A64; }
+    .ma-toggle-btn:hover {
+      background: var(--primary);
+      box-shadow: 0 2px 4px rgba(46,125,111,0.15);
+    }
     .ma-toggle-btn svg { flex-shrink: 0; }
     .ma-toggle-btn.active {
-      background: #1976D2;
+      background: var(--primary);
     }
     .ma-toggle-btn.active:hover {
-      background: #1565C0;
+      background: var(--primary-dark);
     }
 
     /* ============ LOADING ============ */
@@ -360,7 +368,7 @@
       width: 12px;
       height: 12px;
       border: 2px solid #E5E7EB;
-      border-top-color: #3B82F6;
+      border-top-color: var(--primary);
       border-radius: 50%;
       animation: spin 0.6s linear infinite;
       vertical-align: middle;
@@ -646,6 +654,63 @@
       transition: background 0.2s;
     }
     .btn-unlock:hover { background: var(--primary-dark); }
+
+    /* Export Dropdown */
+    .export-dropdown {
+      position: relative;
+      display: inline-block;
+    }
+    .export-btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    .export-btn:hover {
+      background: var(--primary-dark);
+    }
+    .export-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+    .export-dropdown-menu {
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 0;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      z-index: 50;
+      min-width: 160px;
+      overflow: hidden;
+    }
+    .export-dropdown-item {
+      padding: 10px 14px;
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: none;
+      font-size: 13px;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: background 0.2s;
+      display: block;
+    }
+    .export-dropdown-item:hover {
+      background: #f1f5f9;
+    }
+    .export-dropdown-item:not(:last-child) {
+      border-bottom: 1px solid #f0f0f0;
+    }
 
     /* Settings Modal (matching CE Setting.png) */
     .settings-modal {
@@ -1110,7 +1175,7 @@
       width: calc(100% - 16px); margin: 0 8px 6px; padding: 5px 8px;
       border: 1px solid #CBD5E1; border-radius: 4px; font-size: 12px; outline: none;
     }
-    .ccs-filter-popup .ccs-filter-search:focus { border-color: #3B82F6; }
+    .ccs-filter-popup .ccs-filter-search:focus { border-color: var(--primary); }
     .ccs-filter-popup label {
       display: flex; align-items: center; gap: 6px; padding: 4px 12px; font-size: 12px;
       cursor: pointer; white-space: nowrap;
@@ -1409,12 +1474,6 @@
         <button class="apply-btn" onclick="applyCustomDates()">Apply</button>
       </div>
 
-      <!-- Rejection Settings Button (visible only in rejection mode) -->
-      <button class="rej-settings-btn" id="rejSettingsBtn" style="display:none;" onclick="openRejSettingsModal()" title="Rejection Count Settings">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Settings
-      </button>
-
       <!-- Moving Average Non-Productive Days Toggle (visible only in moving_avg mode) -->
       <button class="ma-toggle-btn" id="maToggleBtn" style="display:none;" onclick="toggleNonProductiveDays()" title="Toggle non-productive days display">
         <span id="maToggleIcon">
@@ -1426,8 +1485,14 @@
         <span id="maToggleLabel">Show Non-Productive Days</span>
       </button>
 
-      <!-- Export Table Button -->
-      <div style="margin-left:auto;">
+      <!-- Right side controls: Settings + Export -->
+      <div style="margin-left:auto; display:flex; align-items:center; gap:12px;">
+        <!-- Rejection Settings Button (visible only in rejection mode) -->
+        <button class="rej-settings-btn" id="rejSettingsBtn" style="display:none;" onclick="openRejSettingsModal()" title="Rejection Count Settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Settings
+        </button>
+        <!-- Export Table Button -->
         <div class="export-dropdown" id="tableExportDropdown">
           <button class="export-toggle" onclick="toggleTableExportMenu()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -1435,6 +1500,7 @@
           </button>
           <div class="export-menu" id="tableExportMenu">
             <div class="export-item" onclick="exportTableCSV()">Download as Excel</div>
+            <div class="export-item" onclick="exportTablePDF()">Download as PDF</div>
             <div class="export-item" onclick="exportTableImage()">Download as Image</div>
           </div>
         </div>
@@ -1469,6 +1535,7 @@
           </button>
           <div class="export-menu" id="kpiExportMenu">
             <div class="export-item" onclick="exportKpiExcel()">Download as Excel</div>
+            <div class="export-item" onclick="exportKpiPDF()">Download as PDF</div>
             <div class="export-item" onclick="exportKpiImage()">Download as Image</div>
           </div>
         </div>
@@ -1533,6 +1600,7 @@
           </button>
           <div class="export-menu" id="ccsExportMenu">
             <div class="export-item" onclick="exportCcsExcel()">Download as Excel</div>
+            <div class="export-item" onclick="exportCcsPDF()">Download as PDF</div>
           </div>
         </div>
       </div>
@@ -1552,7 +1620,7 @@
     <div id="ccs-pagination">
       <div class="ccs-page-info">
         <span id="ccsPageInfo">Showing 0 of 0</span>
-        <span id="ccsPageLoadingIndicator" style="display:none;margin-left:10px;color:#3B82F6;font-size:12px;">
+        <span id="ccsPageLoadingIndicator" style="display:none;margin-left:10px;color:var(--primary);font-size:12px;">
           <span class="spinner-small"></span> Loading...
         </span>
       </div>
@@ -1858,6 +1926,7 @@
       devices: [],
       deviceMap: {},
       cellData: {},
+      rejectionData: {},
       thresholds: {
         excellent: { min: 90, max: 100 },
         good: { min: 50, max: 89 },
@@ -2427,6 +2496,10 @@
       dateKeys.forEach(dk => { allDayDataC1[dk] = []; allDayDataC2[dk] = []; allDayDataCombined[dk] = []; });
       let totalExcellentAll = 0, totalCyclesAll = 0;
 
+      // Variables for total rejection row (for rejection mode)
+      let totalRowData = {};
+      let totalRowLabel = isRej ? 'Total Rejection' : cfgAvgLabel;
+
       if (isCombined) {
         // ---- COMBINED EFFICIENCY MODE ----
         cellNums.forEach(cellNum => {
@@ -2480,22 +2553,40 @@
         });
 
         if (showSummaryRows) {
-          // Avg Row (combined)
-          let avgRowHTML = `<td class="col-cellno" style="font-size:13px;font-weight:800;"><span class="cell-num-label" onclick="openAvgChart()" style="font-size:13px;">${cfgAvgLabel}</span></td>`;
+          // Avg/Total Row (combined) - will be inserted at top later
+          let avgRowHTML = `<td class="col-cellno" style="font-size:13px;font-weight:800;"><span class="cell-num-label" onclick="openAvgChart()" style="font-size:13px;">${totalRowLabel}</span></td>`;
           let allAvgValues = [];
+          let allTotalValues = [];
           dateKeys.forEach(dk => {
             const vals = allDayDataCombined[dk];
             if (vals.length > 0) {
-              const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-              allAvgValues.push(avg);
-              avgRowHTML += `<td class="${getCellClass(avg)}">${Math.round(avg)}${showPct ? '%' : ''}</td>`;
+              if (isRej) {
+                // For rejection mode: calculate total (sum)
+                const total = vals.reduce((a, b) => a + b, 0);
+                allTotalValues.push(total);
+                avgRowHTML += `<td class="${getCellClass(total)}">${Math.round(total)}</td>`;
+              } else {
+                // For efficiency mode: calculate average
+                const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+                allAvgValues.push(avg);
+                avgRowHTML += `<td class="${getCellClass(avg)}">${Math.round(avg)}${showPct ? '%' : ''}</td>`;
+              }
             } else {
               avgRowHTML += `<td class="cell-nodata">--</td>`;
             }
           });
-          const overallAvg = allAvgValues.length ? (allAvgValues.reduce((a, b) => a + b, 0) / allAvgValues.length) : null;
-          avgRowHTML += `<td class="col-avg ${getCellClass(overallAvg)}">${overallAvg !== null ? Math.round(overallAvg) + (showPct ? '%' : '') : '--'}</td>`;
-          bodyHTML += `<tr class="row-avg">${avgRowHTML}</tr>`;
+
+          if (isRej) {
+            // For rejection mode: show total of all totals
+            const grandTotal = allTotalValues.length ? allTotalValues.reduce((a, b) => a + b, 0) : null;
+            avgRowHTML += `<td class="col-avg ${getCellClass(grandTotal)}">${grandTotal !== null ? Math.round(grandTotal) : '--'}</td>`;
+          } else {
+            // For efficiency mode: show average
+            const overallAvg = allAvgValues.length ? (allAvgValues.reduce((a, b) => a + b, 0) / allAvgValues.length) : null;
+            avgRowHTML += `<td class="col-avg ${getCellClass(overallAvg)}">${overallAvg !== null ? Math.round(overallAvg) + (showPct ? '%' : '') : '--'}</td>`;
+          }
+
+          totalRowData.combined = `<tr class="row-avg">${avgRowHTML}</tr>`;
 
           // Distribution rows (combined)
           const distLabels = activeDashConfig.rejectionMode
@@ -2602,22 +2693,40 @@
         });
 
         if (showSummaryRows) {
-          // Avg Row (C1/C2)
-          let avgRowHTML = `<td class="col-cellno" style="font-size:13px;font-weight:800;"><span class="cell-num-label" onclick="openAvgChart()" style="font-size:13px;">${cfgAvgLabel}</span></td>`;
+          // Avg/Total Row (C1/C2) - will be inserted at top later
+          let avgRowHTML = `<td class="col-cellno" style="font-size:13px;font-weight:800;"><span class="cell-num-label" onclick="openAvgChart()" style="font-size:13px;">${totalRowLabel}</span></td>`;
           avgRowHTML += `<td class="col-selection">--</td>`;
           let allAvgValues = [];
+          let allTotalValues = [];
           dateKeys.forEach(dk => {
             const combined = [...(allDayDataC1[dk] || []), ...(allDayDataC2[dk] || [])];
             if (combined.length > 0) {
-              const avg = combined.reduce((a, b) => a + b, 0) / combined.length;
-              allAvgValues.push(avg);
-              avgRowHTML += `<td class="${getCellClass(avg)}">${Math.round(avg)}${showPct ? '%' : ''}</td>`;
+              if (isRej) {
+                // For rejection mode: calculate total (sum)
+                const total = combined.reduce((a, b) => a + b, 0);
+                allTotalValues.push(total);
+                avgRowHTML += `<td class="${getCellClass(total)}">${Math.round(total)}</td>`;
+              } else {
+                // For efficiency mode: calculate average
+                const avg = combined.reduce((a, b) => a + b, 0) / combined.length;
+                allAvgValues.push(avg);
+                avgRowHTML += `<td class="${getCellClass(avg)}">${Math.round(avg)}${showPct ? '%' : ''}</td>`;
+              }
             } else { avgRowHTML += `<td class="cell-nodata">--</td>`; }
           });
-          const overallAvg = allAvgValues.length ? (allAvgValues.reduce((a, b) => a + b, 0) / allAvgValues.length) : null;
-          avgRowHTML += `<td class="col-avg ${getCellClass(overallAvg)}">${overallAvg !== null ? Math.round(overallAvg) + (showPct ? '%' : '') : '--'}</td>`;
+
+          if (isRej) {
+            // For rejection mode: show total of all totals
+            const grandTotal = allTotalValues.length ? allTotalValues.reduce((a, b) => a + b, 0) : null;
+            avgRowHTML += `<td class="col-avg ${getCellClass(grandTotal)}">${grandTotal !== null ? Math.round(grandTotal) : '--'}</td>`;
+          } else {
+            // For efficiency mode: show average
+            const overallAvg = allAvgValues.length ? (allAvgValues.reduce((a, b) => a + b, 0) / allAvgValues.length) : null;
+            avgRowHTML += `<td class="col-avg ${getCellClass(overallAvg)}">${overallAvg !== null ? Math.round(overallAvg) + (showPct ? '%' : '') : '--'}</td>`;
+          }
+
           if (showExcCol) avgRowHTML += `<td class="col-excellent ${getExcellentCycleClass(totalExcellentAll, totalCyclesAll)}">${totalCyclesAll > 0 ? totalExcellentAll + ' out of ' + totalCyclesAll : '--'}</td>`;
-          bodyHTML += `<tr class="row-avg">${avgRowHTML}</tr>`;
+          totalRowData.c1c2 = `<tr class="row-avg">${avgRowHTML}</tr>`;
 
           // Distribution (C1/C2)
           const allDayDataAll = {};
@@ -2645,6 +2754,14 @@
             if (showExcCol) distRowHTML += `<td class="col-excellent">--</td>`;
             bodyHTML += `<tr class="row-dist ${colorClass}">${distRowHTML}</tr>`;
           });
+        }
+      }
+
+      // Prepend total/avg row at the top if available
+      if (showSummaryRows) {
+        const totalRow = isCombined ? totalRowData.combined : totalRowData.c1c2;
+        if (totalRow) {
+          bodyHTML = totalRow + bodyHTML;
         }
       }
 
@@ -3144,7 +3261,10 @@
       if (isAvgChart) {
         // Avg chart always shows a single line (the daily combined average)
       } else {
-        const cellInfo = state.cellData[currentChartCell] || {};
+        // For KPI dashboard in rejection mode, use rejectionData
+        // For main dashboard (rejection or efficiency), use cellData (it contains the current mode's data)
+        const dataSource = (isKpiSingleSensor && activeDashConfig.rejectionMode) ? state.rejectionData : state.cellData;
+        const cellInfo = dataSource[currentChartCell] || {};
         c1Data = cellInfo['C1'] || {};
         c2Data = cellInfo['C2'] || {};
       }
@@ -3157,8 +3277,9 @@
         const vals = dateKeys.map(dk => sData[dk] !== undefined ? Math.round(sData[dk] * 100) / 100 : null);
         const pointColors = vals.map(v => getPointColor(v));
         const pointIcon = kpiSensorType === 'C1' ? 'triangle' : 'circle';
+        const dataLabel = activeDashConfig.rejectionMode ? `${kpiSensorType} Rejected Cathodes` : `${kpiSensorType} Efficiency`;
         datasets = [{
-          label: `${kpiSensorType} Efficiency`,
+          label: dataLabel,
           data: vals,
           segment: { borderColor: ctx => { const idx = ctx.p1DataIndex; return getPointColor(vals[idx]); }},
           pointBackgroundColor: pointColors,
@@ -3177,6 +3298,7 @@
           const cellRange = getCellRange();
           const cellNums = [];
           for (let i = cellRange.start; i <= cellRange.end; i++) cellNums.push(i);
+          // Use state.cellData - it contains either efficiency or rejection data based on current dashboard
           dateKeys.forEach(dk => {
             const allValsDay = [];
             cellNums.forEach(cn => {
@@ -3185,7 +3307,13 @@
               if (v1 !== undefined && v1 !== null) allValsDay.push(v1);
               if (v2 !== undefined && v2 !== null) allValsDay.push(v2);
             });
-            combinedDataMap[dk] = allValsDay.length > 0 ? Math.round((allValsDay.reduce((a, b) => a + b, 0) / allValsDay.length) * 100) / 100 : null;
+            if (activeDashConfig.rejectionMode) {
+              // For rejection mode: calculate total (sum)
+              combinedDataMap[dk] = allValsDay.length > 0 ? Math.round(allValsDay.reduce((a, b) => a + b, 0) * 100) / 100 : null;
+            } else {
+              // For efficiency mode: calculate average
+              combinedDataMap[dk] = allValsDay.length > 0 ? Math.round((allValsDay.reduce((a, b) => a + b, 0) / allValsDay.length) * 100) / 100 : null;
+            }
           });
         } else {
           dateKeys.forEach(dk => {
@@ -3257,9 +3385,19 @@
       const dataMin = allVals.length ? Math.min(...allVals) : 0;
       const dataMax = allVals.length ? Math.max(...allVals) : 100;
       const range = dataMax - dataMin;
-      const padding = Math.max(range * 0.3, 3);
-      const yMin = Math.max(0, Math.floor(dataMin - padding));
-      const yMax = Math.min(100, Math.ceil(dataMax + padding));
+
+      let yMin, yMax;
+      if (activeDashConfig.rejectionMode) {
+        // For rejection mode: use dynamic scaling to center the trend
+        const padding = Math.max(range * 0.4, Math.max(dataMax * 0.3, 5));
+        yMin = Math.max(0, Math.floor(dataMin - padding));
+        yMax = Math.ceil(dataMax + padding);
+      } else {
+        // For efficiency mode: keep percentage scaling (0-100)
+        const padding = Math.max(range * 0.3, 3);
+        yMin = Math.max(0, Math.floor(dataMin - padding));
+        yMax = Math.min(100, Math.ceil(dataMax + padding));
+      }
 
       const legendColors = ['#2563EB', '#E11D48'];
       const legendConfig = singleLineMode ? {
@@ -3303,9 +3441,17 @@
       };
 
       const tooltipCallbacks = singleLineMode ? {
-        label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y + '%' : 'N/A'}`,
+        label: ctx => {
+          const value = ctx.parsed.y !== null ? ctx.parsed.y : 'N/A';
+          const suffix = activeDashConfig.rejectionMode ? '' : '%';
+          return ` ${ctx.dataset.label}: ${value !== 'N/A' ? value + suffix : value}`;
+        },
       } : {
-        label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y + '%' : 'N/A'}`,
+        label: ctx => {
+          const value = ctx.parsed.y !== null ? ctx.parsed.y : 'N/A';
+          const suffix = activeDashConfig.rejectionMode ? '' : '%';
+          return ` ${ctx.dataset.label}: ${value !== 'N/A' ? value + suffix : value}`;
+        },
         labelPointStyle: ctx => ({ pointStyle: ctx.datasetIndex === 0 ? 'triangle' : 'circle' }),
         labelColor: ctx => ({
           borderColor: legendColors[ctx.datasetIndex],
@@ -3544,6 +3690,9 @@
       dateKeys.forEach(dk => { allDayC1[dk] = []; allDayC2[dk] = []; allDayComb[dk] = []; });
       let totalExc = 0, totalCyc = 0;
 
+      // Placeholder for total row - will be filled later
+      let totalRowInsertionPoint = html.length;
+
       if (isCombined) {
         cellNums.forEach(cn => {
           const ci = state.cellData[cn] || {};
@@ -3683,31 +3832,54 @@
         });
       }
 
+      // Build total/avg row data for later insertion
+      let totalRowHTML = '';
       if (showSummaryExport) {
-        // Avg Row
+        // Avg/Total Row
         const avgStyle = cellStyle + 'background:#F0F9FF;font-weight:700;font-size:13px;border-top:2px solid #2E7D6F;';
-        html += '<tr>';
-        html += `<td style="${avgStyle}color:#1A202C;">${activeDashConfig.avgLabel}</td>`;
-        if (!isCombined) html += `<td style="${avgStyle}color:#64748B;">--</td>`;
+        const totalRowLabel = isRejExport ? 'Total Rejection' : activeDashConfig.avgLabel;
+        totalRowHTML += '<tr>';
+        totalRowHTML += `<td style="${avgStyle}color:#1A202C;">${totalRowLabel}</td>`;
+        if (!isCombined) totalRowHTML += `<td style="${avgStyle}color:#64748B;">--</td>`;
         let allAvg = [];
+        let allTotal = [];
         const pctSuffix = activeDashConfig.showPercent ? '%' : '';
         dateKeys.forEach(dk => {
           const vals = isCombined ? (allDayComb[dk] || []) : [...(allDayC1[dk] || []), ...(allDayC2[dk] || [])];
           if (vals.length > 0) {
-            const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-            allAvg.push(avg);
-            const c = getColorForClass(getCellClass(avg));
-            html += `<td style="${avgStyle}background:${c.bg};color:${c.color};">${Math.round(avg)}${pctSuffix}</td>`;
-          } else { html += `<td style="${avgStyle}color:#CBD5E1;">--</td>`; }
+            if (isRejExport) {
+              // For rejection mode: calculate total (sum)
+              const total = vals.reduce((a, b) => a + b, 0);
+              allTotal.push(total);
+              const c = getColorForClass(getCellClass(total));
+              totalRowHTML += `<td style="${avgStyle}background:${c.bg};color:${c.color};">${Math.round(total)}</td>`;
+            } else {
+              // For efficiency mode: calculate average
+              const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+              allAvg.push(avg);
+              const c = getColorForClass(getCellClass(avg));
+              totalRowHTML += `<td style="${avgStyle}background:${c.bg};color:${c.color};">${Math.round(avg)}${pctSuffix}</td>`;
+            }
+          } else { totalRowHTML += `<td style="${avgStyle}color:#CBD5E1;">--</td>`; }
         });
-        const oa = allAvg.length ? allAvg.reduce((a, b) => a + b, 0) / allAvg.length : null;
-        const oac = getColorForClass(getCellClass(oa));
-        html += `<td style="${avgStyle}background:${oac.bg};color:${oac.color};">${oa !== null ? Math.round(oa) + pctSuffix : '--'}</td>`;
+
+        if (isRejExport) {
+          // For rejection mode: show total of all totals
+          const grandTotal = allTotal.length ? allTotal.reduce((a, b) => a + b, 0) : null;
+          const gtc = getColorForClass(getCellClass(grandTotal));
+          totalRowHTML += `<td style="${avgStyle}background:${gtc.bg};color:${gtc.color};">${grandTotal !== null ? Math.round(grandTotal) : '--'}</td>`;
+        } else {
+          // For efficiency mode: show average
+          const oa = allAvg.length ? allAvg.reduce((a, b) => a + b, 0) / allAvg.length : null;
+          const oac = getColorForClass(getCellClass(oa));
+          totalRowHTML += `<td style="${avgStyle}background:${oac.bg};color:${oac.color};">${oa !== null ? Math.round(oa) + pctSuffix : '--'}</td>`;
+        }
+
         if (showExcColExport) {
           const ecc = getColorForClass(getExcellentCycleClass(totalExc, totalCyc));
-          html += `<td style="${avgStyle}background:${ecc.bg};color:${ecc.color};">${totalCyc > 0 ? totalExc + ' out of ' + totalCyc : '--'}</td>`;
+          totalRowHTML += `<td style="${avgStyle}background:${ecc.bg};color:${ecc.color};">${totalCyc > 0 ? totalExc + ' out of ' + totalCyc : '--'}</td>`;
         }
-        html += '</tr>';
+        totalRowHTML += '</tr>';
 
         // CE Distribution
         const allDayAll = {};
@@ -3739,6 +3911,11 @@
           if (showExcColExport) html += `<td style="${cellStyle}">--</td>`;
           html += '</tr>';
         });
+      }
+
+      // Insert total row at the top (after header row) if available
+      if (showSummaryExport && totalRowHTML) {
+        html = html.substring(0, totalRowInsertionPoint) + totalRowHTML + html.substring(totalRowInsertionPoint);
       }
 
       html += '</table>';
@@ -4063,6 +4240,7 @@
       const results = await runWithConcurrency(tasks, CONFIG.concurrency);
 
       state.cellData = {};
+      state.rejectionData = {};
 
       results.forEach(r => {
         if (!r) return;
@@ -4088,9 +4266,14 @@
         // Store in appropriate data structure based on type
         if (r.type === 'rejection') {
           kpiRejRaw[key] = values;
+          // Store rejection data in state.rejectionData for chart functionality
+          if (!state.rejectionData[r.cellNum]) state.rejectionData[r.cellNum] = {};
+          const dateValues = {};
+          Object.keys(byDate).forEach(dk => { dateValues[dk] = Math.round(byDate[dk].value * 100) / 100; });
+          state.rejectionData[r.cellNum][r.sensor] = dateValues;
         } else {
           kpiRaw[key] = values;
-          // Only store efficiency data in state.cellData for existing chart functionality
+          // Store efficiency data in state.cellData for existing chart functionality
           if (!state.cellData[r.cellNum]) state.cellData[r.cellNum] = {};
           const dateValues = {};
           Object.keys(byDate).forEach(dk => { dateValues[dk] = Math.round(byDate[dk].value * 100) / 100; });
@@ -4115,7 +4298,7 @@
         kpiData[n] = entries;
       });
 
-      // Process rejection data (sum instead of average)
+      // Process rejection data (average instead of total)
       kpiRejectionData = {};
       [3, 7, 30].forEach(n => {
         const entries = [];
@@ -4123,10 +4306,10 @@
           const vals = kpiRejRaw[key];
           const slice = vals.slice(0, n);
           if (slice.length === 0) {
-            entries.push({ key, total: null });
+            entries.push({ key, avg: null });
           } else {
-            const total = Math.round(slice.reduce((a, b) => a + b, 0));
-            entries.push({ key, total });
+            const avg = Math.round((slice.reduce((a, b) => a + b, 0) / slice.length) * 100) / 100;
+            entries.push({ key, avg });
           }
         });
         kpiRejectionData[n] = entries;
@@ -4182,7 +4365,7 @@
         // Update column title
         const colTitle = document.querySelector(`#kpi-col-${n}`).previousElementSibling.previousElementSibling;
         if (isRejection) {
-          colTitle.textContent = `Last ${n} Cycles Total Rejections`;
+          colTitle.textContent = `Last ${n} Cycles Avg Rejections`;
         } else {
           colTitle.textContent = `Last ${n} Cycles Avg Efficiency`;
         }
@@ -4190,7 +4373,7 @@
         // Update table header
         const tableHeader = document.querySelector(`#kpi-col-${n}`).previousElementSibling;
         if (isRejection) {
-          tableHeader.innerHTML = '<span>Cell No</span><span class="kpi-hdr-eff">Rejected Cathodes</span><span>Total</span>';
+          tableHeader.innerHTML = '<span>Cell No</span><span class="kpi-hdr-eff">Rejected Cathodes</span><span>Avg</span>';
         } else {
           tableHeader.innerHTML = '<span>Cell No</span><span class="kpi-hdr-eff">Avg Efficiency</span><span>CE%</span>';
         }
@@ -4249,14 +4432,14 @@
 
       [3, 7, 30].forEach(n => {
         const container = document.getElementById(`kpi-col-${n}`);
-        const entries = kpiRejectionData[n].filter(e => e.total !== null);
+        const entries = kpiRejectionData[n].filter(e => e.avg !== null);
 
         if (kpiMode === 'best') {
           // Best: lowest rejections first (ascending)
-          entries.sort((a, b) => a.total - b.total);
+          entries.sort((a, b) => a.avg - b.avg);
         } else {
           // Worst: highest rejections first (descending)
-          entries.sort((a, b) => b.total - a.total);
+          entries.sort((a, b) => b.avg - a.avg);
         }
 
         const top10 = entries.slice(0, 10);
@@ -4268,19 +4451,19 @@
         }
 
         // Find max value for bar width scaling
-        const maxVal = Math.max(...top10.map(item => item.total));
+        const maxVal = Math.max(...top10.map(item => item.avg));
 
         let html = '';
         top10.forEach(item => {
           const p = parseCellKey(item.key);
           const cellLabel = `${p.num}-${p.sensor}`;
-          const barW = maxVal > 0 ? (item.total / maxVal) * 100 : 0;
-          const barClass = getRejBarClass(item.total);
-          const pctClass = getRejPctClass(item.total);
+          const barW = maxVal > 0 ? (item.avg / maxVal) * 100 : 0;
+          const barClass = getRejBarClass(item.avg);
+          const pctClass = getRejPctClass(item.avg);
           html += `<div class="kpi-row" onclick="openKpiRejectionChart(${p.num},'${p.sensor}')" style="cursor:pointer;">
             <div class="kpi-cell-label" style="color:var(--primary-dark);text-decoration:underline;text-underline-offset:2px;">${cellLabel}</div>
             <div class="kpi-bar-wrap"><div class="kpi-bar ${barClass}" style="width:${barW}%"></div></div>
-            <div class="kpi-pct ${pctClass}">${item.total}</div>
+            <div class="kpi-pct ${pctClass}">${item.avg}</div>
           </div>`;
         });
         container.innerHTML = html;
@@ -4299,9 +4482,9 @@
 
     function getKpiTop10(n) {
       if (kpiDataType === 'rejections') {
-        const entries = kpiRejectionData[n].filter(e => e.total !== null);
-        if (kpiMode === 'best') entries.sort((a, b) => a.total - b.total); // ascending
-        else entries.sort((a, b) => b.total - a.total); // descending
+        const entries = kpiRejectionData[n].filter(e => e.avg !== null);
+        if (kpiMode === 'best') entries.sort((a, b) => a.avg - b.avg); // ascending
+        else entries.sort((a, b) => b.avg - a.avg); // descending
         const top10 = entries.slice(0, 10);
         top10.sort(sortCellKeys);
         return top10;
@@ -4362,7 +4545,7 @@
 
       html += `<tr>`;
       cols.forEach((n, ci) => {
-        const colTitle = isRejection ? `Last ${n} Cycles Total Rejections` : `Last ${n} Cycles Avg Efficiency`;
+        const colTitle = isRejection ? `Last ${n} Cycles Avg Rejections` : `Last ${n} Cycles Avg Efficiency`;
         html += `<th colspan="2" style="${bdr}${ff}background:#37474F;color:#FFFFFF;text-align:center;font-size:13px;font-weight:700;padding:10px 8px;">${colTitle}</th>`;
         if (ci < 2) html += `<td style="border:none;width:12px;background:#FFFFFF;"></td>`;
       });
@@ -4371,7 +4554,7 @@
       html += `<tr>`;
       cols.forEach((_, ci) => {
         html += `<th style="${bdr}${ff}background:#546E7A;color:#FFFFFF;text-align:center;font-size:11px;font-weight:600;padding:8px 6px;width:90px;">Cell No</th>`;
-        const valueHeader = isRejection ? 'Total' : 'CE%';
+        const valueHeader = isRejection ? 'Avg' : 'CE%';
         html += `<th style="${bdr}${ff}background:#546E7A;color:#FFFFFF;text-align:center;font-size:11px;font-weight:600;padding:8px 6px;width:90px;">${valueHeader}</th>`;
         if (ci < 2) html += `<td style="border:none;width:12px;background:#FFFFFF;"></td>`;
       });
@@ -4385,7 +4568,7 @@
           if (item) {
             const p = parseCellKey(item.key);
             const cellLabel = `${p.num}-${p.sensor}`;
-            const value = isRejection ? item.total : item.avg;
+            const value = item.avg;
             const c = kpiCellColor(value);
             const displayValue = isRejection ? value : `${value}%`;
             html += `<td style="${bdr}${ff}background:${rowBg};text-align:center;font-size:12px;font-weight:700;padding:7px 6px;color:#1E3A5F;">${cellLabel}</td>`;
@@ -4521,7 +4704,7 @@
           if (data[i]) {
             const item = data[i];
             const p = parseCellKey(item.key);
-            const value = isRejection ? item.total : item.avg;
+            const value = item.avg;
             const c = kpiCellColor(value);
 
             ctx.fillStyle = '#1E3A5F';
@@ -6182,6 +6365,395 @@
         try {
           Object.assign(state.rejThresholds, JSON.parse(savedRej));
         } catch (e) {}
+      }
+    }
+
+    /* ================================================
+       PDF EXPORT MODULE
+       ================================================ */
+
+    // Color mappings for PDF
+    const STATUS_COLORS_PDF = {
+      excellent: { r: 22, g: 163, b: 74, fillColor: [220, 252, 231] },  // Green
+      good: { r: 234, g: 88, b: 12, fillColor: [255, 247, 237] },      // Orange
+      bad: { r: 220, g: 38, b: 38, fillColor: [254, 242, 242] },       // Red
+      nodata: { r: 148, g: 163, b: 184, fillColor: [241, 245, 249] }   // Gray
+    };
+
+    // Wrapper functions for menu items
+    function exportTablePDF() {
+      closeTableExportMenu();
+      exportHeatmapPDF();
+    }
+
+    function exportCcsPDF() {
+      document.getElementById('ccsExportMenu').classList.remove('show');
+      exportCellCycleSummaryPDF();
+    }
+
+    // Helper function to get color from class name
+    function getColorForClass(className) {
+      if (className === 'cell-excellent') return { bg: '#DCFCE7', color: '#16A34A' };
+      if (className === 'cell-good') return { bg: '#FFF7ED', color: '#EA580C' };
+      if (className === 'cell-bad') return { bg: '#FEF2F2', color: '#DC2626' };
+      return { bg: '#FAFAFA', color: '#CBD5E1' };
+    }
+
+    // Calculate optimal layout for PDF
+    function calculatePDFLayout(dataRows, columns) {
+      const orientation = dataRows.length > 50 || columns.length > 10 ? 'landscape' : 'portrait';
+      const pageWidth = orientation === 'landscape' ? 297 : 210;
+      const pageHeight = orientation === 'landscape' ? 210 : 297;
+      const margins = { top: 20, left: 14, right: 14, bottom: 20 };
+
+      return {
+        orientation,
+        pageWidth,
+        pageHeight,
+        margins,
+        contentWidth: pageWidth - margins.left - margins.right,
+        contentHeight: pageHeight - margins.top - margins.bottom
+      };
+    }
+
+    // Export Cell Efficiency Heatmap to PDF (uses same data as Excel export)
+    function exportHeatmapPDF() {
+      try {
+        const { jsPDF } = window.jspdf;
+
+        // Use the same buildExportTable() function that Excel uses
+        const htmlTable = buildExportTable();
+
+        // Parse the HTML table to extract data
+        const container = document.createElement('div');
+        container.innerHTML = htmlTable;
+        const table = container.querySelector('table');
+        const rows = table.querySelectorAll('tr');
+
+        // Determine orientation based on number of columns
+        const firstDataRow = Array.from(rows).find(r => !r.querySelector('th[colspan]'));
+        const colCount = firstDataRow ? firstDataRow.querySelectorAll('th, td').length : 10;
+        const orientation = colCount > 10 ? 'landscape' : 'portrait';
+
+        const doc = new jsPDF(orientation, 'mm', 'a4');
+        const pageWidth = orientation === 'landscape' ? 297 : 210;
+        const margins = { top: 10, left: 8, right: 8, bottom: 10 };
+
+        // Convert HTML table rows to autoTable format
+        const bodyData = [];
+
+        rows.forEach((row, rowIndex) => {
+          const cells = row.querySelectorAll('th, td');
+          const rowData = [];
+
+          cells.forEach(cell => {
+            const text = cell.textContent.trim();
+            const colspan = parseInt(cell.getAttribute('colspan')) || 1;
+            const rowspan = parseInt(cell.getAttribute('rowspan')) || 1;
+            const bgColor = cell.style.background || cell.style.backgroundColor || '';
+            const textColor = cell.style.color || '';
+            const fontWeight = cell.style.fontWeight || '';
+
+            // Parse colors
+            const fillColor = bgColor ? parseColor(bgColor) : null;
+            const textColorRGB = textColor ? parseColor(textColor) : null;
+            const isBold = fontWeight.includes('700') || fontWeight.includes('800') || fontWeight.includes('bold');
+
+            // Determine font size based on row index
+            let fontSize = 6; // Default for data rows
+            if (rowIndex === 0) fontSize = 10;      // Main header
+            else if (rowIndex === 1) fontSize = 9;  // Sub-header
+            else if (rowIndex === 2) fontSize = 7;  // Duration
+            else if (rowIndex === 4) fontSize = 7;  // Column headers
+
+            rowData.push({
+              content: text,
+              colSpan: colspan,
+              rowSpan: rowspan,
+              styles: {
+                fillColor: fillColor,
+                textColor: textColorRGB,
+                fontStyle: isBold ? 'bold' : 'normal',
+                halign: 'center',
+                valign: 'middle',
+                fontSize: fontSize,
+                cellPadding: rowIndex <= 2 ? 2 : 1
+              }
+            });
+          });
+
+          bodyData.push(rowData);
+        });
+
+        // Generate PDF with autoTable using html option
+        doc.autoTable({
+          body: bodyData,
+          startY: margins.top,
+          margin: margins,
+          theme: 'grid',
+          styles: {
+            lineColor: [226, 232, 240],
+            lineWidth: 0.1,
+            overflow: 'linebreak'
+          },
+          pageBreak: 'auto',
+          showHead: false
+        });
+
+        // Save the PDF
+        const side = state.currentSide === 'east' ? 'East_Side' : 'West_Side';
+        const filePrefix = activeDashConfig.rejectionMode ? 'Rejected_Cathode_Count' : 'Cell_Efficiency';
+        const movAvgSuffix = state.cycleType === 'moving_avg' ? '_Moving_Avg' : '';
+        const fileName = `${filePrefix}${movAvgSuffix}_${side}_${new Date().toISOString().slice(0,10)}.pdf`;
+        doc.save(fileName);
+      } catch (error) {
+        console.error('PDF export error:', error);
+        showError('PDF export failed: ' + error.message);
+      }
+    }
+
+    // Helper function to parse CSS color to RGB array
+    function parseColor(colorStr) {
+      if (!colorStr) return undefined;
+
+      // Handle hex colors
+      if (colorStr.startsWith('#')) {
+        const hex = colorStr.substring(1);
+        if (hex.length === 3) {
+          return [
+            parseInt(hex[0] + hex[0], 16),
+            parseInt(hex[1] + hex[1], 16),
+            parseInt(hex[2] + hex[2], 16)
+          ];
+        } else if (hex.length === 6) {
+          return [
+            parseInt(hex.substring(0, 2), 16),
+            parseInt(hex.substring(2, 4), 16),
+            parseInt(hex.substring(4, 6), 16)
+          ];
+        }
+      }
+
+      // Handle rgb/rgba colors
+      const match = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (match) {
+        return [parseInt(match[1]), parseInt(match[2]), parseInt(match[3])];
+      }
+
+      return undefined;
+    }
+
+    // Export KPI Dashboard to PDF (uses same data as Excel export)
+    function exportKpiPDF() {
+      try {
+        document.getElementById('kpiExportMenu').classList.remove('show');
+        const { jsPDF } = window.jspdf;
+
+        // Use the same buildKpiExportTable() function that Excel uses
+        const htmlTable = buildKpiExportTable();
+        if (!htmlTable) {
+          showError('No KPI data to export');
+          return;
+        }
+
+        // Parse the HTML table to extract data
+        const container = document.createElement('div');
+        container.innerHTML = htmlTable;
+        const table = container.querySelector('table');
+        const rows = table.querySelectorAll('tr');
+
+        const doc = new jsPDF('landscape', 'mm', 'a4');
+        const margins = { top: 10, left: 8, right: 8, bottom: 10 };
+
+        // Convert HTML table rows to autoTable format
+        const bodyData = [];
+
+        rows.forEach((row, rowIndex) => {
+          const cells = row.querySelectorAll('th, td');
+          const rowData = [];
+
+          cells.forEach(cell => {
+            const text = cell.textContent.trim();
+            const colspan = parseInt(cell.getAttribute('colspan')) || 1;
+            const rowspan = parseInt(cell.getAttribute('rowspan')) || 1;
+            const bgColor = cell.style.background || cell.style.backgroundColor || '';
+            const textColor = cell.style.color || '';
+            const fontWeight = cell.style.fontWeight || '';
+
+            const fillColor = bgColor ? parseColor(bgColor) : null;
+            const textColorRGB = textColor ? parseColor(textColor) : null;
+            const isBold = fontWeight.includes('700') || fontWeight.includes('800') || fontWeight.includes('bold');
+
+            // Determine font size based on row type
+            let fontSize = 6;
+            if (rowIndex === 0) fontSize = 10;  // Main header
+            else if (rowIndex === 1) fontSize = 9;  // Sub-header
+            else if (rowIndex === 2) fontSize = 7;  // Duration info
+            else if (rowIndex === 4) fontSize = 7;  // Section headers
+            else if (rowIndex === 5) fontSize = 7;  // Column headers
+
+            rowData.push({
+              content: text,
+              colSpan: colspan,
+              rowSpan: rowspan,
+              styles: {
+                fillColor: fillColor,
+                textColor: textColorRGB,
+                fontStyle: isBold ? 'bold' : 'normal',
+                halign: 'center',
+                valign: 'middle',
+                fontSize: fontSize,
+                cellPadding: rowIndex <= 2 ? 2 : 1
+              }
+            });
+          });
+
+          bodyData.push(rowData);
+        });
+
+        doc.autoTable({
+          body: bodyData,
+          startY: margins.top,
+          margin: margins,
+          theme: 'grid',
+          styles: {
+            lineColor: [226, 232, 240],
+            lineWidth: 0.1,
+            overflow: 'linebreak'
+          },
+          pageBreak: 'auto',
+          showHead: false
+        });
+
+        // Save with same naming as Excel
+        const side = state.currentSide === 'east' ? 'East_Side' : 'West_Side';
+        const filePrefix = activeDashConfig.rejectionMode ? 'KPI_Rejected_Cathode' : 'KPI_Cell_Efficiency';
+        const fileName = `${filePrefix}_${side}_${new Date().toISOString().slice(0,10)}.pdf`;
+        doc.save(fileName);
+      } catch (error) {
+        console.error('KPI PDF export error:', error);
+        showError('PDF export failed: ' + error.message);
+      }
+    }
+
+    // Export Cell Cycle Summary to PDF
+    function exportCellCycleSummaryPDF() {
+      try {
+        const { jsPDF } = window.jspdf;
+
+        // Get table data
+        const tbody = document.getElementById('ccs-body');
+        if (!tbody) {
+          showError('No data to export');
+          return;
+        }
+
+        // Get column headers
+        const thead = document.getElementById('ccs-header');
+        const headers = [];
+        const ths = thead.getElementsByTagName('th');
+        for (let th of ths) {
+          headers.push(th.textContent.trim());
+        }
+
+        // Get filtered and sorted rows (same as Excel export)
+        const exportRows = getCcsFilteredSortedRows();
+        const rows = exportRows.map(r => {
+          const row = [];
+          CCS_CONFIG.columns.forEach(col => {
+            let val = r[col.key];
+            if (col.key === 'cellNumber') {
+              val = `Cell ${val}`;
+            } else if (col.key === 'cellSelection') {
+              val = val || '';
+            } else if (col.key === 'startTime' || col.key === 'endTime') {
+              val = val ? new Date(val).toLocaleString('en-GB', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              }) : '';
+            } else if (col.key === 'duration') {
+              val = val || '';
+            } else if (col.key === 'cathodeCount') {
+              val = val || '0';
+            } else if (col.key === 'coldSpotCount' || col.key === 'singleSideColdCount' || col.key === 'doubleSideColdCount') {
+              val = val || '0';
+            }
+            row.push(val);
+          });
+          return row;
+        });
+
+        // Create landscape PDF for better fit
+        const doc = new jsPDF('landscape', 'mm', 'a4');
+        const pageWidth = 297;
+        const margins = { top: 15, left: 10, right: 10, bottom: 10 };
+
+        // Add header
+        const sideInfo = state.currentSide === 'east' ? 'East Side CSM 2' : 'West Side';
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(30, 41, 59);
+        doc.text('Cell Cycle Summary', margins.left, 10);
+
+        doc.setFontSize(11);
+        doc.setTextColor(51, 65, 85);
+        doc.text(sideInfo, margins.left, 16);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        const dateStr = new Date().toISOString().slice(0, 10);
+        const periodLabel = document.querySelector('#dd-ccs-time .dropdown-label')?.textContent || '';
+        doc.text(`Generated: ${dateStr} | Period: ${periodLabel} | Total Records: ${rows.length}`, margins.left, 21);
+
+        // Add table with proper column widths
+        doc.autoTable({
+          head: [headers],
+          body: rows,
+          startY: 25,
+          theme: 'grid',
+          styles: {
+            fontSize: 6,
+            cellPadding: 1.5,
+            overflow: 'linebreak',
+            halign: 'center',
+            valign: 'middle'
+          },
+          headStyles: {
+            fillColor: [47, 64, 80],
+            textColor: [255, 255, 255],
+            fontSize: 7,
+            fontStyle: 'bold',
+            halign: 'center',
+            cellPadding: 2
+          },
+          columnStyles: {
+            0: { cellWidth: 18, halign: 'left', fontStyle: 'bold' }, // Cell Number
+            1: { cellWidth: 15, halign: 'center' }, // Selection
+            2: { cellWidth: 28, halign: 'center' }, // Start Time
+            3: { cellWidth: 28, halign: 'center' }, // End Time
+            4: { cellWidth: 20, halign: 'center' }, // Duration
+            5: { cellWidth: 18, halign: 'center' }, // Cathode Count
+            6: { cellWidth: 20, halign: 'center' }, // Cold Spot
+            7: { cellWidth: 22, halign: 'center' }, // Single Side
+            8: { cellWidth: 22, halign: 'center' }  // Double Side
+          },
+          margin: margins,
+          pageBreak: 'auto',
+          showHead: 'everyPage',
+          tableWidth: 'auto'
+        });
+
+        // Save PDF
+        const fileName = `Cell_Cycle_Summary_${sideInfo.replace(/ /g, '_')}_${dateStr}.pdf`;
+        doc.save(fileName);
+      } catch (error) {
+        console.error('CCS PDF export error:', error);
+        showError('PDF export failed: ' + error.message);
       }
     }
 
