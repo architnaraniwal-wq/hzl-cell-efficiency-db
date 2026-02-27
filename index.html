@@ -2889,11 +2889,13 @@
       const label = document.getElementById('maToggleLabel');
 
       if (state.showDashForNonProductive) {
+        // When true: showing dashes for non-productive days
         btn.classList.add('active');
         label.textContent = 'Show Repeated Values';
       } else {
+        // When false: showing repeated values for non-productive days
         btn.classList.remove('active');
-        label.textContent = 'Show Dashes';
+        label.textContent = 'Show Non-Productive Days';
       }
 
       renderTable();
